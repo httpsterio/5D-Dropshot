@@ -537,23 +537,46 @@ certain way, or a place a real bug could plausibly hide.
   system locale. Date strings in match records (shown but not stored as
   strings) will vary. The old app stored locale-formatted strings, which
   was a bug; the new app stores numeric timestamps and formats on render.
-- [ ] **A11y**: visible focus rings, `aria-label` on icon-only buttons.
-  `autofocus` on the Add Player input fires an a11y warning at build —
-  intentional trade-off.
 
 ---
 
-## 7. Things explicitly out of scope (so don't flag as missing)
+## 8. Bug Hunt Findings (May 2026)
 
-- Multi-language / i18n.
-- Doubles (4 players on court). Singles only.
-- Cloud sync / accounts.
-- Match editing after save (only delete or hand-edit JSON).
-- Light theme.
-- Cap rules (badminton's 30-cap rule isn't enforced; we play to threshold +
-  win-by-margin with no upper bound).
-- Renaming players (not in the UI; can be done via export → edit JSON →
-  import).
-- Tournament brackets, sets, games.
-- Per-opponent stats breakdown on the player profile.
-- Match start/end notifications.
+Following a comprehensive review of the codebase against the design spec, the following issues, edge cases, and observations were identified.
+
+### 8.1 Critical/Logic Bugs
+
+- **Missing `historyVersion` bump on Shot Type updates**:
+  The `updateShotType` and `removeShotType` functions in `src/stores/app.svelte.ts` do not increment `app.historyVersion`. Since `statsFor` uses this version as a cache key, stats will remain stale even after an attribution change or shot type deletion until a match is finished or deleted.
+- **Score synchronization and the Win Prompt**:
+  The `meetsWinCondition` in `MatchView.svelte` is a derived value that reacts to `app.config`. If a user changes `winThreshold` or `winByMargin` mid-match to values that are *already met* by the current score, the Win Prompt will trigger immediately upon returning to the Match tab. While technically correct behavior, it might be jarring.
+- **`endMatch` silent failure**:
+  If a user attempts to "End" a match without both players assigned, `endMatch()` returns `null` and `MatchView` redirects the user to Home. This discards the scoring UI state without warning (though the `activeMatch` is preserved in the background). A toast or keeping the user on the Match screen would be better UX.
+
+### 8.2 Edge Cases & Invariants
+
+- **Soft-delete of assigned players**:
+  `softDeletePlayer` correctly clears the slot if the deleted player is currently assigned to an active match. This prevents `endMatch` from potentially saving a match with a deleted player ID.
+- **Shot Type deletion (Orphaned Points)**:
+  `statsFor` and `MatchDetail` handle deleted shot types gracefully (using `st?.label ?? '—'` and skipping stats computation for unresolved IDs). This matches the design intent of keeping history immutable while allowing configuration to change.
+- **Duplicate Player Names**:
+  `submitAdd` in `SettingsPlayers.svelte` silently ignores attempts to add a player whose name matches an active player. While it prevents duplicates, the lack of feedback (e.g., a toast) might leave the user confused as to why the "Add" button did nothing.
+- **Rapid Double-Tap on Score**:
+  `logPoint` is called immediately on picker selection. Svelte 5's fine-grained reactivity and the simple `push` to the points array make this very fast. There is no debouncing, so rapid taps will log multiple points. Given the "Undo" feature, this is acceptable.
+
+### 8.3 UX / Layout Observations
+
+- **Bottom Nav Hiding**:
+  The rule `tab === 'match' && app.activeMatch !== null` works as intended. However, because `MatchView` auto-starts a match on mount, the nav essentially disappears the moment you click the "Match" tab if no match was active.
+- **Browser Back Button**:
+  The app lacks a `popstate` listener or deep-linking for the router. Pressing the browser's back button will exit the PWA or go back to the previous website rather than popping the internal route stack.
+- **Win Prompt "Ask Once"**:
+  The `winPromptShown` flag correctly prevents the prompt from re-firing. If a user dismisses it, then undoes a point and reaches the threshold again, they are not bothered a second time. This matches the spec.
+
+### 8.4 Technical Debt / Improvements
+
+- **Local Storage Quota**:
+  There is no error handling around `localStorage.setItem` in `src/lib/storage.ts`. If the quota is exceeded, the app will continue to function in memory but fail to persist, with no indication to the user.
+- **Schema Migration on Import**:
+  `SettingsData.svelte` performs validation but does not run migrations on imported data. If the schema version of the export is older than the current app, it may lead to missing fields in the state.
+

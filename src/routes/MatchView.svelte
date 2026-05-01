@@ -12,7 +12,6 @@
     startMatch
   } from '../stores/app.svelte';
   import { switchTab } from '../stores/router.svelte';
-  import AppBar from '../components/AppBar.svelte';
   import PointTypePicker from '../components/PointTypePicker.svelte';
   import PlayerPicker from '../components/PlayerPicker.svelte';
   import Confirm from '../components/Confirm.svelte';
@@ -30,12 +29,22 @@
   const leftName = $derived(leftPlayer?.name ?? 'Player 1');
   const rightName = $derived(rightPlayer?.name ?? 'Player 2');
 
-  const lastPoints = $derived(match ? match.points.slice(-3).reverse() : []);
+  // Most recent first; up to 8 entries (5 full + 3 fading)
+  const recentPoints = $derived.by(() => {
+    if (!match) return [];
+    const total = match.points.length;
+    return match.points.slice(-8).reverse().map((point, i) => ({
+      point,
+      pointNumber: total - i,
+      fadeIndex: i
+    }));
+  });
 
   let pickerSlot: Slot | null = $state(null);
   let playerPickerSlot: Slot | null = $state(null);
   let confirmEnd = $state(false);
   let confirmAbort = $state(false);
+  let confirmUndo = $state(false);
 
   const winThreshold = $derived(app.config.winThreshold);
   const winMargin = $derived(app.config.winByMargin);
@@ -78,7 +87,6 @@
     if (finished) {
       switchTab('history');
     } else {
-      // missing player assignment
       switchTab('home');
     }
   }
@@ -89,56 +97,85 @@
     switchTab('home');
   }
 
+  function doUndo() {
+    confirmUndo = false;
+    undoPoint();
+  }
+
+  function fadeOpacity(i: number): string {
+    if (i < 5) return '';
+    if (i === 5) return 'opacity-60';
+    if (i === 6) return 'opacity-40';
+    return 'opacity-25';
+  }
+
   function fmtTime(ts: number) {
     return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 </script>
 
 <div class="flex flex-col h-full">
-  <AppBar title="Match" />
 
   {#if match}
+    <!-- Top action bar: Abort / End -->
+    <header class="safe-top bg-base-200 border-b border-base-300 grid grid-cols-2 divide-x divide-base-300">
+      <button class="py-3 text-error font-medium active:bg-base-300 transition-colors" onclick={() => confirmAbort = true}>Abort</button>
+      <button class="py-3 text-success font-medium active:bg-base-300 transition-colors" onclick={() => confirmEnd = true}>End</button>
+    </header>
+
     <div class="flex-1 flex flex-col overflow-hidden">
 
       <!-- Player slot row -->
       <div class="grid grid-cols-2 border-b border-base-300">
         <button class="py-3 px-3 text-center active:bg-base-200 transition-colors border-r border-base-300" onclick={() => playerPickerSlot = 'left'}>
-          <div class="text-[10px] uppercase tracking-wide text-base-content/50">Left</div>
+          <div class="text-[10px] uppercase tracking-wide text-info">Left</div>
           <div class="font-medium truncate {leftPlayer ? '' : 'text-base-content/50'}">{leftName}</div>
         </button>
         <button class="py-3 px-3 text-center active:bg-base-200 transition-colors" onclick={() => playerPickerSlot = 'right'}>
-          <div class="text-[10px] uppercase tracking-wide text-base-content/50">Right</div>
+          <div class="text-[10px] uppercase tracking-wide text-warning">Right</div>
           <div class="font-medium truncate {rightPlayer ? '' : 'text-base-content/50'}">{rightName}</div>
         </button>
       </div>
 
       <!-- Score display -->
-      <div class="grid grid-cols-2 py-6 border-b border-base-300">
+      <div class="grid grid-cols-2 py-5 border-b border-base-300">
         <div class="text-center">
-          <div class="text-7xl font-bold tabular leading-none">{score.left}</div>
+          <div class="text-7xl font-bold tabular leading-none text-info">{score.left}</div>
         </div>
         <div class="text-center">
-          <div class="text-7xl font-bold tabular leading-none">{score.right}</div>
+          <div class="text-7xl font-bold tabular leading-none text-warning">{score.right}</div>
         </div>
       </div>
 
       <!-- Last points -->
       <div class="flex-1 overflow-y-auto px-3 py-2 min-h-0">
-        <div class="text-[10px] uppercase tracking-wide text-base-content/50 mb-2 px-1">Last points</div>
-        {#if lastPoints.length === 0}
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-[10px] uppercase tracking-wide text-base-content/50">Last points</span>
+          {#if recentPoints.length > 0}
+            <span class="text-[10px] uppercase tracking-wide text-base-content/40 flex items-center gap-1">
+              Newest
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            </span>
+          {/if}
+        </div>
+        {#if recentPoints.length === 0}
           <p class="text-center text-sm text-base-content/40 py-4">No points yet</p>
         {:else}
-          <ul class="space-y-1.5">
-            {#each lastPoints as p, i (match.points.length - i)}
+          <ul class="space-y-1">
+            {#each recentPoints as entry, i (entry.pointNumber)}
+              {@const p = entry.point}
               {@const st = getShotType(p.shotTypeId)}
               {@const scoredName = p.scorerSlot === 'left' ? leftName : rightName}
-              <li class="bg-base-200 rounded-lg px-3 py-2 text-sm flex items-center justify-between">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="badge badge-sm {p.scorerSlot === 'left' ? 'badge-info' : 'badge-secondary'}">{p.scorerSlot === 'left' ? 'L' : 'R'}</span>
-                  <span class="font-medium truncate">{scoredName}</span>
-                  <span class="text-base-content/50 truncate">· {st?.label ?? '—'}</span>
+              {@const isLeft = p.scorerSlot === 'left'}
+              <li class="rounded-lg px-3 py-2 text-sm flex items-center gap-2 transition-opacity
+                {fadeOpacity(i)}
+                {isLeft ? 'bg-info/15 border-l-4 border-info' : 'bg-warning/15 border-r-4 border-warning'}">
+                <span class="text-[11px] text-base-content/50 tabular shrink-0 w-7 {isLeft ? '' : 'order-3 text-right'}">#{entry.pointNumber}</span>
+                <div class="flex items-center gap-2 min-w-0 flex-1 {isLeft ? '' : 'justify-end text-right order-2'}">
+                  <span class="font-semibold truncate {isLeft ? 'text-info' : 'text-warning order-2'}">{scoredName}</span>
+                  <span class="text-base-content/70 truncate {isLeft ? '' : 'order-1'}">{st?.label ?? '—'}</span>
                 </div>
-                <span class="text-[11px] text-base-content/50 tabular shrink-0 ml-2">{fmtTime(p.timestamp)}</span>
+                <span class="text-[10px] text-base-content/40 tabular shrink-0 {isLeft ? 'order-3' : 'order-1'}">{fmtTime(p.timestamp)}</span>
               </li>
             {/each}
           </ul>
@@ -146,15 +183,14 @@
       </div>
 
       <!-- Action row -->
-      <div class="border-t border-base-300 p-3 space-y-2 safe-bottom">
-        <div class="flex gap-2">
-          <button class="btn btn-ghost btn-sm flex-1" onclick={undoPoint} disabled={match.points.length === 0}>Undo</button>
-          <button class="btn btn-ghost btn-sm flex-1 text-error" onclick={() => confirmAbort = true}>Abort</button>
-          <button class="btn btn-ghost btn-sm flex-1 text-success" onclick={() => confirmEnd = true}>End</button>
-        </div>
+      <div class="border-t border-base-300 px-3 pt-3 pb-5 space-y-2 safe-bottom">
+        <button class="btn btn-ghost btn-sm w-full" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+          Undo last point
+        </button>
         <div class="grid grid-cols-2 gap-2">
-          <button class="btn btn-primary h-16 text-lg" onclick={() => openScore('left')}>+ {leftName}</button>
-          <button class="btn btn-primary h-16 text-lg" onclick={() => openScore('right')}>+ {rightName}</button>
+          <button class="btn btn-info h-16 text-base" onclick={() => openScore('left')}>+ {leftName}</button>
+          <button class="btn btn-warning h-16 text-base" onclick={() => openScore('right')}>+ {rightName}</button>
         </div>
       </div>
     </div>
@@ -205,4 +241,13 @@
   danger
   onConfirm={doAbort}
   onCancel={() => confirmAbort = false}
+/>
+
+<Confirm
+  open={confirmUndo}
+  title="Undo last point?"
+  message="The most recent point will be removed."
+  confirmLabel="Undo"
+  onConfirm={doUndo}
+  onCancel={() => confirmUndo = false}
 />

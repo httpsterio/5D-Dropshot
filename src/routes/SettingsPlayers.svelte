@@ -83,7 +83,7 @@
       </ul>
     {/if}
   </div>
-  <div class="border-t border-base-300 p-3 safe-bottom">
+  <div class="border-t border-base-300 px-4 pt-3 pb-5 safe-bottom">
     <button class="btn btn-primary w-full" onclick={openAdd}>Add player</button>
   </div>
 </div>
