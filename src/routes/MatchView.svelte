@@ -171,13 +171,14 @@
               {@const st = getShotType(p.shotTypeId)}
               {@const scoredName = p.scorerSlot === 'left' ? leftName : rightName}
               {@const isLeft = p.scorerSlot === 'left'}
+              {@const shotColor = st?.attribution === 'winner' ? 'text-success' : st?.attribution === 'error' ? 'text-error' : 'text-base-content/70'}
               <li class="rounded-lg px-3 py-2 text-sm flex items-center gap-2 transition-opacity
                 {fadeOpacity(i)}
                 {isLeft ? 'bg-info/15 border-l-4 border-info' : 'bg-warning/15 border-r-4 border-warning'}">
                 <span class="text-[11px] text-base-content/50 tabular shrink-0 w-7 {isLeft ? '' : 'order-3 text-right'}">#{entry.pointNumber}</span>
                 <div class="flex items-center gap-2 min-w-0 flex-1 {isLeft ? '' : 'justify-end text-right order-2'}">
                   <span class="font-semibold truncate {isLeft ? 'text-info' : 'text-warning order-2'}">{scoredName}</span>
-                  <span class="text-base-content/70 truncate {isLeft ? '' : 'order-1'}">{st?.label ?? '—'}</span>
+                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{st?.label ?? '—'}</span>
                 </div>
                 <span class="text-[10px] text-base-content/40 tabular shrink-0 {isLeft ? 'order-3' : 'order-1'}">{fmtTime(p.timestamp)}</span>
               </li>

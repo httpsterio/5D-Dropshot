@@ -18,7 +18,11 @@ export function load(): AppData {
 }
 
 export function save(data: AppData): void {
-  localStorage.setItem(KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch {
+    // quota exceeded or private browsing — app continues in memory only
+  }
 }
 
 function migrate(data: AppData): AppData {

@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { app, getPlayer, scoreOf, startMatch } from '../stores/app.svelte';
+  import { app, getPlayer, scoreOf, startMatch, activePlayers } from '../stores/app.svelte';
   import { go, switchTab } from '../stores/router.svelte';
   import { formatDuration } from '../lib/stats';
   import AppBar from '../components/AppBar.svelte';
 
   const recent = $derived(app.matches.slice(0, 3));
   const hasActive = $derived(!!app.activeMatch);
+  const canStart = $derived(hasActive || activePlayers().length >= 2);
 
   function newMatch() {
+    if (!canStart) return;
     if (!app.activeMatch) startMatch();
     switchTab('match');
   }
@@ -53,18 +55,21 @@
       </button>
     {/if}
 
-    <button class="btn btn-primary btn-lg w-full h-16 text-base" onclick={newMatch}>
+    <button class="btn btn-primary btn-lg w-full h-16 text-base disabled:opacity-40" disabled={!canStart} onclick={newMatch}>
       {hasActive ? 'Open Active Match' : 'Start New Match'}
     </button>
+    {#if !canStart}
+      <p class="text-center text-sm text-base-content/50 -mt-2">Add at least 2 players in Settings to start a match.</p>
+    {/if}
 
     <div class="grid grid-cols-2 gap-3">
-      <div class="stat bg-base-200 rounded-xl p-4">
-        <div class="stat-title text-xs">Players</div>
-        <div class="stat-value text-2xl tabular">{app.players.filter(p => !p.deletedAt).length}</div>
+      <div class="bg-base-200 rounded-xl p-4">
+        <div class="text-xs text-base-content/60">Players</div>
+        <div class="text-2xl font-bold tabular mt-1">{app.players.filter(p => !p.deletedAt).length}</div>
       </div>
-      <div class="stat bg-base-200 rounded-xl p-4">
-        <div class="stat-title text-xs">Matches</div>
-        <div class="stat-value text-2xl tabular">{app.matches.length}</div>
+      <div class="bg-base-200 rounded-xl p-4">
+        <div class="text-xs text-base-content/60">Matches</div>
+        <div class="text-2xl font-bold tabular mt-1">{app.matches.length}</div>
       </div>
     </div>
 

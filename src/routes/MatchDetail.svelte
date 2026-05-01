@@ -65,11 +65,11 @@
             {#each match.points as p, idx (idx)}
               {@const st = getShotType(p.shotTypeId)}
               {@const scoredName = p.scorerSlot === 'left' ? (lp?.name ?? '—') : (rp?.name ?? '—')}
+              {@const shotColor = st?.attribution === 'winner' ? 'text-success' : st?.attribution === 'error' ? 'text-error' : 'text-base-content/60'}
               <li class="bg-base-200 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                 <span class="text-[11px] text-base-content/50 tabular w-6 shrink-0">{idx + 1}.</span>
-                <span class="badge badge-sm {p.scorerSlot === 'left' ? 'badge-info' : 'badge-secondary'} shrink-0">{p.scorerSlot === 'left' ? 'L' : 'R'}</span>
-                <span class="font-medium truncate">{scoredName}</span>
-                <span class="text-base-content/60 truncate">· {st?.label ?? '—'}</span>
+                <span class="font-medium truncate {p.scorerSlot === 'left' ? 'text-info' : 'text-warning'}">{scoredName}</span>
+                <span class="{shotColor} truncate">· {st?.label ?? '—'}</span>
               </li>
             {/each}
           </ol>
