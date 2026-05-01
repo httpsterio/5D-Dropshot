@@ -120,7 +120,11 @@
     <!-- Top action bar: Abort / End -->
     <header class="safe-top bg-base-200 border-b border-base-300 grid grid-cols-2 divide-x divide-base-300">
       <button class="py-3 text-error font-medium active:bg-base-300 transition-colors" onclick={() => confirmAbort = true}>Abort</button>
-      <button class="py-3 text-success font-medium active:bg-base-300 transition-colors" onclick={() => confirmEnd = true}>End</button>
+      <button
+        class="py-3 text-success font-medium active:bg-base-300 transition-colors disabled:text-base-content/30 disabled:active:bg-transparent"
+        disabled={!match.leftPlayerId || !match.rightPlayerId}
+        onclick={() => confirmEnd = true}
+      >End</button>
     </header>
 
     <div class="flex-1 flex flex-col overflow-hidden">

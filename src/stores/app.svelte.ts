@@ -83,12 +83,15 @@ export function addShotType(label: string, attribution: 'winner' | 'error'): Sho
 export function updateShotType(id: string, patch: Partial<Pick<ShotType, 'label' | 'attribution'>>): void {
   const t = app.shotTypes.find((s) => s.id === id);
   if (!t) return;
+  const attributionChanged = patch.attribution !== undefined && patch.attribution !== t.attribution;
   if (patch.label !== undefined) t.label = patch.label.trim();
   if (patch.attribution !== undefined) t.attribution = patch.attribution;
+  if (attributionChanged) app.historyVersion++;
 }
 
 export function removeShotType(id: string): void {
   app.shotTypes = app.shotTypes.filter((s) => s.id !== id);
+  app.historyVersion++;
 }
 
 export function setConfig(patch: Partial<MatchConfig>): void {

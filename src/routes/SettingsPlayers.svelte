@@ -9,6 +9,7 @@
 
   let addOpen = $state(false);
   let newName = $state('');
+  let addError = $state('');
   let restoreOpen = $state(false);
   let restoreTarget = $state<{ id: string; name: string } | null>(null);
   let pendingName = $state('');
@@ -17,26 +18,31 @@
 
   function openAdd() {
     newName = '';
+    addError = '';
     addOpen = true;
   }
 
   function submitAdd() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name) {
+      addError = 'Name cannot be empty.';
+      return;
+    }
     const existing = findPlayerByName(name);
     if (existing && existing.deletedAt !== null) {
       restoreTarget = { id: existing.id, name: existing.name };
       pendingName = name;
+      addError = '';
       addOpen = false;
       restoreOpen = true;
       return;
     }
     if (existing && existing.deletedAt === null) {
-      // duplicate active name — don't add
-      addOpen = false;
+      addError = `A player named "${existing.name}" already exists.`;
       return;
     }
     addPlayer(name);
+    addError = '';
     addOpen = false;
   }
 
@@ -94,8 +100,12 @@
     placeholder="Player name"
     bind:value={newName}
     autofocus
+    oninput={() => { if (addError) addError = ''; }}
     onkeydown={(e) => { if (e.key === 'Enter') submitAdd(); }}
   />
+  {#if addError}
+    <p class="text-sm text-error mt-2">{addError}</p>
+  {/if}
   {#snippet actions()}
     <button class="btn btn-ghost" onclick={() => addOpen = false}>Cancel</button>
     <button class="btn btn-primary" onclick={submitAdd}>Add</button>

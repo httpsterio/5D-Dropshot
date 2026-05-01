@@ -417,11 +417,10 @@ certain way, or a place a real bug could plausibly hide.
 - [ ] **Stats for orphaned shot type**: `statsFor` skips points whose shot
   type can't be resolved (the `if (!shot) continue;` guard). Confirm this is
   what we want — the alternative is to count the point but as "unknown."
-- [ ] **Editing a shot type's attribution after matches were played using it**:
-  retro-active recomputation will move the credit between players. Verify
-  this is intentional and `historyVersion` bumps so caches invalidate. (NOTE:
-  `updateShotType` does NOT currently bump `historyVersion` — possible bug.
-  Check whether stats stay stale after such an edit.)
+- [x] **Editing a shot type's attribution after matches were played using it**:
+  retro-active recomputation will move the credit between players. `updateShotType`
+  bumps `historyVersion` when the attribution changes; `removeShotType` always bumps.
+  Stats cache invalidates correctly.
 - [ ] **Empty label**: `submit()` early-returns on `!l`. Verify.
 - [ ] **All winners deleted, only errors remain (or vice versa)**: the
   PointTypePicker shows "No winner types defined" / "No error types defined"
@@ -546,12 +545,12 @@ Following a comprehensive review of the codebase against the design spec, the fo
 
 ### 8.1 Critical/Logic Bugs
 
-- **Missing `historyVersion` bump on Shot Type updates**:
-  The `updateShotType` and `removeShotType` functions in `src/stores/app.svelte.ts` do not increment `app.historyVersion`. Since `statsFor` uses this version as a cache key, stats will remain stale even after an attribution change or shot type deletion until a match is finished or deleted.
+- **Missing `historyVersion` bump on Shot Type updates** — *RESOLVED*:
+  `updateShotType` now bumps `app.historyVersion` when the attribution changes (label-only edits don't affect stats), and `removeShotType` always bumps. Stats invalidate immediately after configuration changes that affect derived totals.
 - **Score synchronization and the Win Prompt**:
-  The `meetsWinCondition` in `MatchView.svelte` is a derived value that reacts to `app.config`. If a user changes `winThreshold` or `winByMargin` mid-match to values that are *already met* by the current score, the Win Prompt will trigger immediately upon returning to the Match tab. While technically correct behavior, it might be jarring.
-- **`endMatch` silent failure**:
-  If a user attempts to "End" a match without both players assigned, `endMatch()` returns `null` and `MatchView` redirects the user to Home. This discards the scoring UI state without warning (though the `activeMatch` is preserved in the background). A toast or keeping the user on the Match screen would be better UX.
+  The `meetsWinCondition` in `MatchView.svelte` is a derived value that reacts to `app.config`. If a user changes `winThreshold` or `winByMargin` mid-match to values that are *already met* by the current score, the Win Prompt will trigger immediately upon returning to the Match tab. While technically correct behavior, it might be jarring. *Acceptable — config edits mid-match are deliberate user actions.*
+- **`endMatch` silent failure** — *RESOLVED*:
+  The "End" button in the top action bar is now `disabled` when either slot is unassigned. This makes the unmet precondition visible up front and removes the silent redirect path entirely.
 
 ### 8.2 Edge Cases & Invariants
 
@@ -559,8 +558,8 @@ Following a comprehensive review of the codebase against the design spec, the fo
   `softDeletePlayer` correctly clears the slot if the deleted player is currently assigned to an active match. This prevents `endMatch` from potentially saving a match with a deleted player ID.
 - **Shot Type deletion (Orphaned Points)**:
   `statsFor` and `MatchDetail` handle deleted shot types gracefully (using `st?.label ?? '—'` and skipping stats computation for unresolved IDs). This matches the design intent of keeping history immutable while allowing configuration to change.
-- **Duplicate Player Names**:
-  `submitAdd` in `SettingsPlayers.svelte` silently ignores attempts to add a player whose name matches an active player. While it prevents duplicates, the lack of feedback (e.g., a toast) might leave the user confused as to why the "Add" button did nothing.
+- **Duplicate Player Names** — *RESOLVED*:
+  `submitAdd` now surfaces an inline error message in the Add Player modal when the name matches an existing active player (and also when the name is empty). The modal stays open and the error clears as soon as the user edits the field.
 - **Rapid Double-Tap on Score**:
   `logPoint` is called immediately on picker selection. Svelte 5's fine-grained reactivity and the simple `push` to the points array make this very fast. There is no debouncing, so rapid taps will log multiple points. Given the "Undo" feature, this is acceptable.
 
