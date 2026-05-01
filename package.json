@@ -1,0 +1,27 @@
+{
+  "name": "dropshot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tailwindcss/vite": "^4.1.13",
+    "@tsconfig/svelte": "^5.0.8",
+    "daisyui": "^5.0.46",
+    "svelte": "^5.36.0",
+    "svelte-check": "^4.2.2",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vite": "^6.3.5",
+    "vite-plugin-pwa": "^1.0.1"
+  },
+  "dependencies": {
+    "nosleep.js": "^0.12.0"
+  }
+}
