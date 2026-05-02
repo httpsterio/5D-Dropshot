@@ -49,6 +49,7 @@ export interface FinishedMatch {
 export interface MatchConfig {
   winThreshold: number;
   winByMargin: number;
+  theme: string;
 }
 
 export interface AppData {

@@ -1,6 +1,6 @@
 import type { AppData, ShotType, MatchConfig } from './types';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const DEFAULT_SHOT_TYPES: ShotType[] = [
   { id: 'winner-smash', label: 'Smash', attribution: 'winner' },
@@ -17,7 +17,8 @@ export const DEFAULT_SHOT_TYPES: ShotType[] = [
 
 export const DEFAULT_CONFIG: MatchConfig = {
   winThreshold: 21,
-  winByMargin: 2
+  winByMargin: 2,
+  theme: 'sunset'
 };
 
 export function emptyAppData(): AppData {

@@ -9,6 +9,7 @@ export type Route =
   | { name: 'settingsPlayers' }
   | { name: 'settingsShotTypes' }
   | { name: 'settingsMatchConfig' }
+  | { name: 'settingsTheme' }
   | { name: 'settingsData' }
   | { name: 'player'; playerId: string };
 

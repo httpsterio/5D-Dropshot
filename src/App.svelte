@@ -11,6 +11,7 @@
   import SettingsPlayers from './routes/SettingsPlayers.svelte';
   import SettingsShotTypes from './routes/SettingsShotTypes.svelte';
   import SettingsMatchConfig from './routes/SettingsMatchConfig.svelte';
+  import SettingsTheme from './routes/SettingsTheme.svelte';
   import SettingsData from './routes/SettingsData.svelte';
   import PlayerProfile from './routes/PlayerProfile.svelte';
 
@@ -33,9 +34,22 @@
       try { nosleep.disable(); } catch {}
     }
   });
+
+  $effect(() => {
+    const theme = app.config.theme;
+    // Update theme-color meta tag if it exists
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      // We could try to get the actual background color from the theme,
+      // but for now we'll just let it be or use a heuristic.
+      // Many daisyUI dark themes use dark backgrounds.
+      const isDark = ['business', 'sunset', 'abyss'].includes(theme);
+      meta.setAttribute('content', isDark ? '#1a1a1a' : '#ffffff');
+    }
+  });
 </script>
 
-<div class="flex flex-col h-full bg-base-100 text-base-content">
+<div class="flex flex-col h-full bg-base-100 text-base-content" data-theme={app.config.theme}>
   <main class="flex-1 overflow-hidden">
     {#if route.name === 'home'}
       <HomeView />
@@ -53,6 +67,8 @@
       <SettingsShotTypes />
     {:else if route.name === 'settingsMatchConfig'}
       <SettingsMatchConfig />
+    {:else if route.name === 'settingsTheme'}
+      <SettingsTheme />
     {:else if route.name === 'settingsData'}
       <SettingsData />
     {:else if route.name === 'player'}

@@ -39,6 +39,15 @@
         </button>
       </li>
       <li>
+        <button class="w-full text-left px-4 py-4 active:bg-base-200 flex justify-between items-center" onclick={() => go({ name: 'settingsTheme' })}>
+          <div>
+            <div class="font-medium">Theme</div>
+            <div class="text-xs text-base-content/60">Current: {app.config.theme}</div>
+          </div>
+          <span class="text-base-content/40">›</span>
+        </button>
+      </li>
+      <li>
         <button class="w-full text-left px-4 py-4 active:bg-base-200 flex justify-between items-center" onclick={() => go({ name: 'settingsData' })}>
           <div>
             <div class="font-medium">Data</div>

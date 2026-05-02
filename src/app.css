@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @plugin 'daisyui' {
-  themes: dark --default;
+  themes: sunset --default, bumblebee, retro, cmyk, business, abyss;
 }
 
 html, body, #app {

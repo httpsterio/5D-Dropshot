@@ -25,6 +25,12 @@ export function save(data: AppData): void {
   }
 }
 
-function migrate(data: AppData): AppData {
-  return { ...emptyAppData(), ...data, schemaVersion: SCHEMA_VERSION };
+function migrate(data: any): AppData {
+  const empty = emptyAppData();
+  return {
+    ...empty,
+    ...data,
+    config: { ...empty.config, ...(data.config || {}) },
+    schemaVersion: SCHEMA_VERSION
+  };
 }

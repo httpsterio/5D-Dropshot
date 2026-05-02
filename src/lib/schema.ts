@@ -56,7 +56,10 @@ function isMatch(v: unknown): v is FinishedMatch {
 }
 
 function isConfig(v: unknown): v is MatchConfig {
-  return isObject(v) && isNumber(v.winThreshold) && isNumber(v.winByMargin);
+  return isObject(v) 
+    && isNumber(v.winThreshold) 
+    && isNumber(v.winByMargin)
+    && (v.theme === undefined || isString(v.theme)); // Optional for backward compatibility on import
 }
 
 export function validateExportFile(raw: unknown): Result<ExportFile> {
