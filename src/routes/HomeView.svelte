@@ -1,18 +1,11 @@
 <script lang="ts">
-  import { app, getPlayer, scoreOf, startMatch, activePlayers } from '../stores/app.svelte';
+  import { app, getPlayer, scoreOf } from '../stores/app.svelte';
   import { go, switchTab } from '../stores/router.svelte';
   import { formatDuration } from '../lib/stats';
   import AppBar from '../components/AppBar.svelte';
 
   const recent = $derived(app.matches.slice(0, 3));
   const hasActive = $derived(!!app.activeMatch);
-  const canStart = $derived(hasActive || activePlayers().length >= 2);
-
-  function newMatch() {
-    if (!canStart) return;
-    if (!app.activeMatch) startMatch();
-    switchTab('match');
-  }
 
   function resume() {
     switchTab('match');
@@ -55,24 +48,6 @@
       </button>
     {/if}
 
-    <button class="btn btn-primary btn-lg w-full h-16 text-base disabled:opacity-40" disabled={!canStart} onclick={newMatch}>
-      {hasActive ? 'Open Active Match' : 'Start New Match'}
-    </button>
-    {#if !canStart}
-      <p class="text-center text-sm text-base-content/50 -mt-2">Add at least 2 players in Settings to start a match.</p>
-    {/if}
-
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-base-200 rounded-xl p-4">
-        <div class="text-xs text-base-content/60">Players</div>
-        <div class="text-2xl font-bold tabular mt-1">{app.players.filter(p => !p.deletedAt).length}</div>
-      </div>
-      <div class="bg-base-200 rounded-xl p-4">
-        <div class="text-xs text-base-content/60">Matches</div>
-        <div class="text-2xl font-bold tabular mt-1">{app.matches.length}</div>
-      </div>
-    </div>
-
     <div>
       <div class="flex justify-between items-baseline mb-2">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60">Recent matches</h2>
@@ -90,11 +65,11 @@
             <button class="card bg-base-200 w-full text-left active:bg-base-300 transition-colors" onclick={() => go({ name: 'historyDetail', matchId: m.id })}>
               <div class="card-body p-3">
                 <div class="flex justify-between items-center text-sm">
-                  <span class="truncate flex-1 {m.winnerId === m.leftPlayerId ? 'font-semibold' : ''}">{lp?.name ?? '—'}</span>
-                  <span class="tabular px-2 {m.winnerId === m.leftPlayerId ? 'font-bold' : 'text-base-content/60'}">{m.leftScore}</span>
+                  <span class="truncate flex-1 {m.winnerId === m.leftPlayerId ? 'font-bold text-success' : ''}">{lp?.name ?? '—'}</span>
+                  <span class="tabular px-2 {m.winnerId === m.leftPlayerId ? 'font-bold text-success' : 'text-base-content/60'}">{m.leftScore}</span>
                   <span class="text-base-content/40 px-1">–</span>
-                  <span class="tabular px-2 {m.winnerId === m.rightPlayerId ? 'font-bold' : 'text-base-content/60'}">{m.rightScore}</span>
-                  <span class="truncate flex-1 text-right {m.winnerId === m.rightPlayerId ? 'font-semibold' : ''}">{rp?.name ?? '—'}</span>
+                  <span class="tabular px-2 {m.winnerId === m.rightPlayerId ? 'font-bold text-success' : 'text-base-content/60'}">{m.rightScore}</span>
+                  <span class="truncate flex-1 text-right {m.winnerId === m.rightPlayerId ? 'font-bold text-success' : ''}">{rp?.name ?? '—'}</span>
                 </div>
                 <div class="flex justify-between text-[11px] text-base-content/50 mt-1">
                   <span>{fmtDate(m.endedAt)}</span>

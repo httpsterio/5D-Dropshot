@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { current, tabOf } from './stores/router.svelte';
   import { app } from './stores/app.svelte';
   import BottomNav from './components/BottomNav.svelte';
@@ -50,30 +51,34 @@
 </script>
 
 <div class="flex flex-col h-full bg-base-100 text-base-content" data-theme={app.config.theme}>
-  <main class="flex-1 overflow-hidden">
-    {#if route.name === 'home'}
-      <HomeView />
-    {:else if route.name === 'match'}
-      <MatchView />
-    {:else if route.name === 'history'}
-      <HistoryView />
-    {:else if route.name === 'historyDetail'}
-      <MatchDetail matchId={route.matchId} />
-    {:else if route.name === 'settings'}
-      <SettingsView />
-    {:else if route.name === 'settingsPlayers'}
-      <SettingsPlayers />
-    {:else if route.name === 'settingsShotTypes'}
-      <SettingsShotTypes />
-    {:else if route.name === 'settingsMatchConfig'}
-      <SettingsMatchConfig />
-    {:else if route.name === 'settingsTheme'}
-      <SettingsTheme />
-    {:else if route.name === 'settingsData'}
-      <SettingsData />
-    {:else if route.name === 'player'}
-      <PlayerProfile playerId={route.playerId} />
-    {/if}
+  <main class="flex-1 overflow-hidden relative">
+    {#key route.name}
+      <div class="h-full" in:fade={{ duration: 120 }}>
+        {#if route.name === 'home'}
+          <HomeView />
+        {:else if route.name === 'match'}
+          <MatchView />
+        {:else if route.name === 'history'}
+          <HistoryView />
+        {:else if route.name === 'historyDetail'}
+          <MatchDetail matchId={route.matchId} />
+        {:else if route.name === 'settings'}
+          <SettingsView />
+        {:else if route.name === 'settingsPlayers'}
+          <SettingsPlayers />
+        {:else if route.name === 'settingsShotTypes'}
+          <SettingsShotTypes />
+        {:else if route.name === 'settingsMatchConfig'}
+          <SettingsMatchConfig />
+        {:else if route.name === 'settingsTheme'}
+          <SettingsTheme />
+        {:else if route.name === 'settingsData'}
+          <SettingsData />
+        {:else if route.name === 'player'}
+          <PlayerProfile playerId={route.playerId} />
+        {/if}
+      </div>
+    {/key}
   </main>
   {#if showNav}
     <BottomNav />

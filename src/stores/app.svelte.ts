@@ -94,6 +94,23 @@ export function removeShotType(id: string): void {
   app.historyVersion++;
 }
 
+export function reorderShotType(id: string, direction: 'up' | 'down'): void {
+  const idx = app.shotTypes.findIndex(s => s.id === id);
+  if (idx === -1) return;
+  const attribution = app.shotTypes[idx].attribution;
+  const catIndices = app.shotTypes.reduce<number[]>((acc, s, i) => {
+    if (s.attribution === attribution) acc.push(i);
+    return acc;
+  }, []);
+  const pos = catIndices.indexOf(idx);
+  const targetPos = direction === 'up' ? pos - 1 : pos + 1;
+  if (targetPos < 0 || targetPos >= catIndices.length) return;
+  const swapIdx = catIndices[targetPos];
+  const arr = [...app.shotTypes];
+  [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+  app.shotTypes = arr;
+}
+
 export function setConfig(patch: Partial<MatchConfig>): void {
   Object.assign(app.config, patch);
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, addShotType, updateShotType, removeShotType } from '../stores/app.svelte';
+  import { app, addShotType, updateShotType, removeShotType, reorderShotType } from '../stores/app.svelte';
   import AppBar from '../components/AppBar.svelte';
   import Modal from '../components/Modal.svelte';
   import Confirm from '../components/Confirm.svelte';
@@ -59,7 +59,11 @@
           {#each winners as t (t.id)}
             <li class="bg-base-200 rounded-lg flex items-stretch">
               <button class="flex-1 text-left px-3 py-3" onclick={() => openEdit(t)}>{t.label}</button>
-              <button class="px-3 text-error" aria-label="Delete" onclick={() => confirmDelete = t}>×</button>
+              <div class="flex flex-col border-l border-base-300">
+                <button class="flex-1 px-2.5 text-base-content/40 active:text-base-content text-[10px]" aria-label="Move up" onclick={() => reorderShotType(t.id, 'up')}>▲</button>
+                <button class="flex-1 px-2.5 text-base-content/40 active:text-base-content text-[10px]" aria-label="Move down" onclick={() => reorderShotType(t.id, 'down')}>▼</button>
+              </div>
+              <button class="px-3 text-error border-l border-base-300" aria-label="Delete" onclick={() => confirmDelete = t}>×</button>
             </li>
           {/each}
         </ul>
@@ -75,7 +79,11 @@
           {#each errors as t (t.id)}
             <li class="bg-base-200 rounded-lg flex items-stretch">
               <button class="flex-1 text-left px-3 py-3" onclick={() => openEdit(t)}>{t.label}</button>
-              <button class="px-3 text-error" aria-label="Delete" onclick={() => confirmDelete = t}>×</button>
+              <div class="flex flex-col border-l border-base-300">
+                <button class="flex-1 px-2.5 text-base-content/40 active:text-base-content text-[10px]" aria-label="Move up" onclick={() => reorderShotType(t.id, 'up')}>▲</button>
+                <button class="flex-1 px-2.5 text-base-content/40 active:text-base-content text-[10px]" aria-label="Move down" onclick={() => reorderShotType(t.id, 'down')}>▼</button>
+              </div>
+              <button class="px-3 text-error border-l border-base-300" aria-label="Delete" onclick={() => confirmDelete = t}>×</button>
             </li>
           {/each}
         </ul>

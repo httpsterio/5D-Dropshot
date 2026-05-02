@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { fade, fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
 
   interface Props {
     open: boolean;
@@ -20,9 +22,12 @@
   <div
     role="presentation"
     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 safe-bottom"
+    transition:fade={{ duration: 180 }}
     onclick={handleBackdrop}
   >
-    <div class="bg-base-100 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-xl">
+    <div class="bg-base-100 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-xl"
+      in:fly={{ y: 120, duration: 250, easing: cubicOut }}
+      out:fly={{ y: 120, duration: 180 }}>
       {#if title}
         <div class="px-4 pt-4 pb-2 border-b border-base-300">
           <h2 class="text-lg font-semibold">{title}</h2>

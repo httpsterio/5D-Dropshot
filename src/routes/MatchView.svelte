@@ -169,16 +169,21 @@
             {#each recentPoints as entry, i (entry.pointNumber)}
               {@const p = entry.point}
               {@const st = getShotType(p.shotTypeId)}
+              {@const isError = st?.attribution === 'error'}
               {@const scoredName = p.scorerSlot === 'left' ? leftName : rightName}
+              {@const displayName = isError
+                ? (p.scorerSlot === 'left' ? rightName : leftName)
+                : scoredName}
               {@const isLeft = p.scorerSlot === 'left'}
               {@const shotColor = st?.attribution === 'winner' ? 'text-success' : st?.attribution === 'error' ? 'text-error' : 'text-base-content/70'}
+              {@const nameColor = isError ? 'text-base-content/60' : (isLeft ? 'text-info' : 'text-warning')}
               <li class="rounded-lg px-3 py-2 text-sm flex items-center gap-2 transition-opacity
                 {fadeOpacity(i)}
                 {isLeft ? 'bg-info/15 border-l-4 border-info' : 'bg-warning/15 border-r-4 border-warning'}">
                 <span class="text-[11px] text-base-content/50 tabular shrink-0 w-7 {isLeft ? '' : 'order-3 text-right'}">#{entry.pointNumber}</span>
                 <div class="flex items-center gap-2 min-w-0 flex-1 {isLeft ? '' : 'justify-end text-right order-2'}">
-                  <span class="font-semibold truncate {isLeft ? 'text-info' : 'text-warning order-2'}">{scoredName}</span>
-                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{st?.label ?? '—'}</span>
+                  <span class="font-semibold truncate {nameColor} {isLeft ? '' : 'order-2'}">{displayName}</span>
+                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{isError ? '↩ ' : ''}{st?.label ?? '—'}</span>
                 </div>
                 <span class="text-[10px] text-base-content/40 tabular shrink-0 {isLeft ? 'order-3' : 'order-1'}">{fmtTime(p.timestamp)}</span>
               </li>
@@ -188,7 +193,7 @@
       </div>
 
       <!-- Action row -->
-      <div class="border-t border-base-300 px-3 pt-3 pb-5 space-y-2 safe-bottom">
+      <div class="border-t border-base-300 px-3 pt-3 space-y-2" style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom))">
         <button class="btn btn-ghost btn-sm w-full" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
           Undo last point
