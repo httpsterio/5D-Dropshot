@@ -167,14 +167,14 @@
 
       <!-- Win probability -->
       {#if winProbs}
-        <div class="border-b border-base-300 px-4 py-2">
-          <div class="flex justify-between items-center text-xs text-base-content/40 mb-1">
-            <span class="font-semibold tabular text-info">{winProbs.left}%</span>
-            <span class="uppercase tracking-wide">Win probability</span>
-            <span class="font-semibold tabular text-warning">{winProbs.right}%</span>
-          </div>
-          <div class="h-1 rounded-full bg-warning/30 overflow-hidden">
-            <div class="h-full bg-info/60 rounded-full transition-all duration-300" style="width: {winProbs.left}%"></div>
+        <div class="border-b border-base-300 px-3 py-2.5">
+          <div class="relative h-8 rounded-lg bg-base-300 overflow-hidden">
+            <div class="absolute inset-y-0 left-0 bg-info/20 transition-all duration-300" style="width: {winProbs.left}%"></div>
+            <div class="absolute inset-0 flex items-center justify-between px-3">
+              <span class="text-sm font-bold tabular text-info">{winProbs.left}%</span>
+              <span class="text-[10px] uppercase tracking-widest text-base-content/30">Win prob</span>
+              <span class="text-sm font-bold tabular text-warning">{winProbs.right}%</span>
+            </div>
           </div>
         </div>
       {/if}

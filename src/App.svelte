@@ -44,7 +44,7 @@
       // We could try to get the actual background color from the theme,
       // but for now we'll just let it be or use a heuristic.
       // Many daisyUI dark themes use dark backgrounds.
-      const isDark = ['business', 'sunset', 'abyss'].includes(theme);
+      const isDark = ['business', 'sunset', 'abyss', 'dropdark'].includes(theme);
       meta.setAttribute('content', isDark ? '#1a1a1a' : '#ffffff');
     }
   });

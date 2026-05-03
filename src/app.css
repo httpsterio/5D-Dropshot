@@ -3,6 +3,50 @@
   themes: sunset --default, bumblebee, retro, cmyk, business, abyss;
 }
 
+[data-theme="dropdark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-base-100: oklch(9% 0.02 264);        /* #0f1117 — main background */
+  --color-base-200: oklch(16.522% 0.04157 258.921);      /* #1a1d27 — card / surface */
+  --color-base-300: oklch(20% 0.022 264);      /* #2a2d3a — border / divider */
+  --color-base-content: oklch(96% 0.007 228);  /* #f0f4f8 — primary text */
+
+  /* Accent — teal */
+  --color-primary: oklch(73% 0.145 172);       /* #00c9a7 */
+  --color-primary-content: oklch(18% 0.04 172);
+  --color-secondary: oklch(52% 0.009 251);     /* #6b7280 — muted label text */
+  --color-secondary-content: oklch(90% 0.005 251);
+  --color-accent: oklch(73% 0.145 172);
+  --color-accent-content: oklch(18% 0.04 172);
+  --color-neutral: oklch(16% 0.025 264);
+  --color-neutral-content: oklch(96% 0.007 228);
+
+  /* Semantic */
+  --color-info: oklch(68% 0.13 222);           /* sky blue — left player */
+  --color-info-content: oklch(20% 0.05 230);
+  --color-success: oklch(73% 0.145 172);       /* teal — wins / highlights */
+  --color-success-content: oklch(18% 0.04 172);
+  --color-warning: oklch(79% 0.14 66);         /* amber — right player */
+  --color-warning-content: oklch(22% 0.04 66);
+  --color-error: oklch(68% 0.155 22);          /* #f87171 — losses / errors */
+  --color-error-content: oklch(22% 0.04 22);
+
+  /* Shape */
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Drop Dark: cards get a visible border instead of just a fill difference */
+[data-theme="dropdark"] .card,
+[data-theme="dropdark"] .bg-base-200 {
+  border-color: oklch(20% 0.022 264);
+}
+
 html, body, #app {
   height: 100%;
   overflow: hidden;

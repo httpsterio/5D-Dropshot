@@ -3,6 +3,7 @@
   import AppBar from '../components/AppBar.svelte';
 
   const themes = [
+    { id: 'dropdark', name: 'Drop Dark', desc: 'Near-black with teal accent' },
     { id: 'bumblebee', name: 'Bumblebee', desc: 'Yellow & black' },
     { id: 'retro', name: 'Retro', desc: 'Beige & orange' },
     { id: 'cmyk', name: 'CMYK', desc: 'Cyan, magenta, yellow' },
