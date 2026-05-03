@@ -13,6 +13,7 @@ export interface Player {
   name: string;
   createdAt: number;
   deletedAt: number | null;
+  elo: number;
 }
 
 export type Slot = 'left' | 'right';

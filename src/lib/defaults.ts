@@ -1,6 +1,6 @@
 import type { AppData, ShotType, MatchConfig } from './types';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const DEFAULT_SHOT_TYPES: ShotType[] = [
   { id: 'winner-smash', label: 'Smash', attribution: 'winner' },

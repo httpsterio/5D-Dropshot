@@ -1,11 +1,16 @@
 <script lang="ts">
   import { app, getPlayer, scoreOf } from '../stores/app.svelte';
   import { go, switchTab } from '../stores/router.svelte';
-  import { formatDuration } from '../lib/stats';
+  import { formatDuration, statsFor } from '../lib/stats';
   import AppBar from '../components/AppBar.svelte';
 
   const recent = $derived(app.matches.slice(0, 3));
   const hasActive = $derived(!!app.activeMatch);
+  const activePlayers = $derived(
+    app.players
+      .filter(p => !p.deletedAt)
+      .sort((a, b) => (b.elo ?? 1000) - (a.elo ?? 1000))
+  );
 
   function resume() {
     switchTab('match');
@@ -46,6 +51,28 @@
           <div class="text-xs text-base-content/60 mt-2">Tap to resume</div>
         </div>
       </button>
+    {/if}
+
+    {#if activePlayers.length > 0}
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60 mb-2">Players</h2>
+        <div class="space-y-1.5">
+          {#each activePlayers as p (p.id)}
+            {@const s = statsFor(p.id, app.matches, app.shotTypes, app.historyVersion)}
+            <button class="bg-base-200 rounded-xl w-full text-left active:bg-base-300 transition-colors px-3 py-2.5 flex items-center gap-3" onclick={() => go({ name: 'player', playerId: p.id })}>
+              <span class="font-medium truncate flex-1">{p.name}</span>
+              <span class="text-xs text-base-content/50 shrink-0">
+                <span class="text-success">{s.wins}W</span>
+                <span class="text-base-content/30 mx-0.5">·</span>
+                <span class="text-error">{s.losses}L</span>
+                <span class="text-base-content/30 mx-0.5">·</span>
+                <span>{s.ties}T</span>
+              </span>
+              <span class="tabular font-semibold text-sm shrink-0 w-12 text-right">{p.elo ?? 1000}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
     {/if}
 
     <div>

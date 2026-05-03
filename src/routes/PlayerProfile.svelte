@@ -28,6 +28,11 @@
   {:else}
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
 
+      <div class="bg-base-200 rounded-xl p-4 text-center">
+        <div class="text-[11px] text-base-content/60 uppercase tracking-wide">Elo Rating</div>
+        <div class="text-4xl font-bold tabular mt-1">{player.elo ?? 1000}</div>
+      </div>
+
       <div class="grid grid-cols-3 gap-2">
         <div class="bg-base-200 rounded-xl p-3 text-center">
           <div class="text-[11px] text-base-content/60">Wins</div>

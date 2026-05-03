@@ -1,6 +1,7 @@
 import type { AppData, Player, ShotType, FinishedMatch, ActiveMatch, MatchConfig, Point, Slot } from '../lib/types';
 import { load, save } from '../lib/storage';
 import { uid } from '../lib/id';
+import { computeElo, rebuildEloFromHistory, DEFAULT_ELO } from '../lib/elo';
 
 const initial = load();
 
@@ -45,7 +46,8 @@ export function addPlayer(name: string): Player {
     id: uid(),
     name: name.trim(),
     createdAt: Date.now(),
-    deletedAt: null
+    deletedAt: null,
+    elo: DEFAULT_ELO
   };
   app.players.push(player);
   return player;
@@ -176,6 +178,19 @@ export function endMatch(): FinishedMatch | null {
   app.matches.sort((a, b) => b.endedAt - a.endedAt);
   app.activeMatch = null;
   app.historyVersion++;
+
+  if (!finished.isTie && finished.winnerId && finished.loserId) {
+    const winner = app.players.find(p => p.id === finished.winnerId);
+    const loser = app.players.find(p => p.id === finished.loserId);
+    if (winner && loser) {
+      const winnerScore = finished.winnerId === finished.leftPlayerId ? finished.leftScore : finished.rightScore;
+      const loserScore = finished.loserId === finished.leftPlayerId ? finished.leftScore : finished.rightScore;
+      const updated = computeElo(winner.elo ?? DEFAULT_ELO, loser.elo ?? DEFAULT_ELO, winnerScore, loserScore);
+      winner.elo = updated.winner;
+      loser.elo = updated.loser;
+    }
+  }
+
   return finished;
 }
 
@@ -195,6 +210,8 @@ export function replaceAll(data: Pick<AppData, 'players' | 'shotTypes' | 'matche
   app.config = data.config;
   app.activeMatch = null;
   app.historyVersion++;
+  const needsElo = app.players.some(p => typeof p.elo !== 'number');
+  if (needsElo) rebuildEloFromHistory(app.players, app.matches);
 }
 
 export function exportSnapshot() {

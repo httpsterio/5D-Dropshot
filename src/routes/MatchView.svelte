@@ -16,6 +16,7 @@
   import PlayerPicker from '../components/PlayerPicker.svelte';
   import Confirm from '../components/Confirm.svelte';
   import type { Slot } from '../lib/types';
+  import { computeWinProb, headToHeadP } from '../lib/winProb';
 
   // Auto-create active match if none exists when entering this view
   $effect(() => {
@@ -45,6 +46,19 @@
   let confirmEnd = $state(false);
   let confirmAbort = $state(false);
   let confirmUndo = $state(false);
+
+  const winProbs = $derived.by(() => {
+    if (!match) return null;
+    const p = (match.leftPlayerId && match.rightPlayerId)
+      ? headToHeadP(match.leftPlayerId, match.rightPlayerId, app.matches)
+      : 0.5;
+    const leftWin = computeWinProb(
+      score.left, score.right, p,
+      app.config.winThreshold, app.config.winByMargin
+    );
+    const left = Math.round(leftWin * 100);
+    return { left, right: 100 - left };
+  });
 
   const winThreshold = $derived(app.config.winThreshold);
   const winMargin = $derived(app.config.winByMargin);
@@ -151,6 +165,20 @@
         </div>
       </div>
 
+      <!-- Win probability -->
+      {#if winProbs}
+        <div class="border-b border-base-300 px-4 py-2">
+          <div class="flex justify-between items-center text-xs text-base-content/40 mb-1">
+            <span class="font-semibold tabular text-info">{winProbs.left}%</span>
+            <span class="uppercase tracking-wide">Win probability</span>
+            <span class="font-semibold tabular text-warning">{winProbs.right}%</span>
+          </div>
+          <div class="h-1 rounded-full bg-warning/30 overflow-hidden">
+            <div class="h-full bg-info/60 rounded-full transition-all duration-300" style="width: {winProbs.left}%"></div>
+          </div>
+        </div>
+      {/if}
+
       <!-- Last points -->
       <div class="flex-1 overflow-y-auto px-3 py-2 min-h-0">
         <div class="flex items-center justify-between mb-2 px-1">
@@ -171,19 +199,16 @@
               {@const st = getShotType(p.shotTypeId)}
               {@const isError = st?.attribution === 'error'}
               {@const scoredName = p.scorerSlot === 'left' ? leftName : rightName}
-              {@const displayName = isError
-                ? (p.scorerSlot === 'left' ? rightName : leftName)
-                : scoredName}
+              {@const oppName = p.scorerSlot === 'left' ? rightName : leftName}
               {@const isLeft = p.scorerSlot === 'left'}
               {@const shotColor = st?.attribution === 'winner' ? 'text-success' : st?.attribution === 'error' ? 'text-error' : 'text-base-content/70'}
-              {@const nameColor = isError ? 'text-base-content/60' : (isLeft ? 'text-info' : 'text-warning')}
               <li class="rounded-lg px-3 py-2 text-sm flex items-center gap-2 transition-opacity
                 {fadeOpacity(i)}
                 {isLeft ? 'bg-info/15 border-l-4 border-info' : 'bg-warning/15 border-r-4 border-warning'}">
                 <span class="text-[11px] text-base-content/50 tabular shrink-0 w-7 {isLeft ? '' : 'order-3 text-right'}">#{entry.pointNumber}</span>
                 <div class="flex items-center gap-2 min-w-0 flex-1 {isLeft ? '' : 'justify-end text-right order-2'}">
-                  <span class="font-semibold truncate {nameColor} {isLeft ? '' : 'order-2'}">{displayName}</span>
-                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{isError ? '↩ ' : ''}{st?.label ?? '—'}</span>
+                  <span class="font-semibold truncate {isLeft ? 'text-info' : 'text-warning'} {isLeft ? '' : 'order-2'}">{scoredName}</span>
+                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{isError ? `${oppName} ` : ''}{st?.label ?? '—'}</span>
                 </div>
                 <span class="text-[10px] text-base-content/40 tabular shrink-0 {isLeft ? 'order-3' : 'order-1'}">{fmtTime(p.timestamp)}</span>
               </li>

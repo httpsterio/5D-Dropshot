@@ -1,5 +1,6 @@
 import type { AppData } from './types';
 import { emptyAppData, SCHEMA_VERSION } from './defaults';
+import { rebuildEloFromHistory } from './elo';
 
 const KEY = 'dropshot:v1';
 
@@ -27,10 +28,13 @@ export function save(data: AppData): void {
 
 function migrate(data: any): AppData {
   const empty = emptyAppData();
-  return {
+  const result: AppData = {
     ...empty,
     ...data,
     config: { ...empty.config, ...(data.config || {}) },
     schemaVersion: SCHEMA_VERSION
   };
+  const needsElo = result.players.some((p: any) => typeof p.elo !== 'number');
+  if (needsElo) rebuildEloFromHistory(result.players, result.matches);
+  return result;
 }
