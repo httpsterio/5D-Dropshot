@@ -16,7 +16,7 @@
   import PlayerPicker from '../components/PlayerPicker.svelte';
   import Confirm from '../components/Confirm.svelte';
   import type { Slot } from '../lib/types';
-  import { computeWinProb, headToHeadP } from '../lib/winProb';
+  import { computeWinProb, h2hMatchWinRate, inferP } from '../lib/winProb';
 
   // Auto-create active match if none exists when entering this view
   $effect(() => {
@@ -49,9 +49,9 @@
 
   const winProbs = $derived.by(() => {
     if (!match) return null;
-    const p = (match.leftPlayerId && match.rightPlayerId)
-      ? headToHeadP(match.leftPlayerId, match.rightPlayerId, app.matches)
-      : 0.5;
+    if (!match.leftPlayerId || !match.rightPlayerId) return { left: 50, right: 50 };
+    const winRate = h2hMatchWinRate(match.leftPlayerId, match.rightPlayerId, app.matches);
+    const p = inferP(winRate, app.config.winThreshold, app.config.winByMargin);
     const leftWin = computeWinProb(
       score.left, score.right, p,
       app.config.winThreshold, app.config.winByMargin

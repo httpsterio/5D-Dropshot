@@ -34,37 +34,49 @@ export function computeWinProb(
 }
 
 /**
- * Estimate the per-rally win probability for `playerId` against `opponentId`.
- * Uses H2H points ratio from completed matches, falling back to overall ratio,
- * then 0.5.
+ * Returns the smoothed H2H match win rate for `playerId` against `opponentId`.
+ * Uses Beta(1,1) prior: (wins + 1) / (matches + 2). Falls back to 0.5.
  */
-export function headToHeadP(
+export function h2hMatchWinRate(
   playerId: string,
   opponentId: string,
   matches: FinishedMatch[]
 ): number {
-  let h2hWon = 0, h2hTotal = 0;
-  let allWon = 0, allTotal = 0;
+  let wins = 0, total = 0;
 
   for (const m of matches) {
     const isLeft = m.leftPlayerId === playerId;
     const isRight = m.rightPlayerId === playerId;
     if (!isLeft && !isRight) continue;
 
-    const myScore = isLeft ? m.leftScore : m.rightScore;
-    const total = m.leftScore + m.rightScore;
-    allWon += myScore;
-    allTotal += total;
-
     const isH2H = (isLeft && m.rightPlayerId === opponentId) ||
                   (isRight && m.leftPlayerId === opponentId);
-    if (isH2H) {
-      h2hWon += myScore;
-      h2hTotal += total;
-    }
+    if (!isH2H) continue;
+    total++;
+    if (m.winnerId === playerId) wins++;
   }
 
-  if (h2hTotal > 0) return h2hWon / h2hTotal;
-  if (allTotal > 0) return allWon / allTotal;
-  return 0.5;
+  return total > 0 ? (wins + 1) / (total + 2) : 0.5;
+}
+
+/**
+ * Binary-search for the per-rally probability `p` that produces `target`
+ * match win rate at 0-0. Used to make the starting probability consistent
+ * with the historical H2H match record.
+ */
+export function inferP(
+  target: number,
+  threshold: number,
+  margin: number
+): number {
+  if (target === 0.5) return 0.5;
+  let lo = target > 0.5 ? 0.5 : 0;
+  let hi = target > 0.5 ? 1.0 : 0.5;
+  for (let i = 0; i < 50; i++) {
+    const mid = (lo + hi) / 2;
+    const prob = computeWinProb(0, 0, mid, threshold, margin);
+    if (prob > target) hi = mid;
+    else lo = mid;
+  }
+  return (lo + hi) / 2;
 }
