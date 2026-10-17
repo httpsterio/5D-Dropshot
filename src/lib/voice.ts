@@ -3,6 +3,15 @@ import type { Slot } from './types';
 /** Recognition + readback language. Change this one constant to use another locale. */
 export const VOICE_LANG = 'en-US';
 
+/** Spoken when the user says "point help". */
+export const VOICE_HELP_TEXT =
+  'Winners: smash, drop, kill, clear, drive. Errors: service, net, out, mishit, error.';
+
+/** Feedback tones: high when armed ("Ready"), low on arming timeout ("Again?"). */
+export const TONE_HIGH = 880;
+export const TONE_LOW = 330;
+const TONE_DURATION_MS = 180;
+
 /* ------------------------------------------------------------------ */
 /* Minimal Web Speech API types (SpeechRecognition is not in lib.dom). */
 /* ------------------------------------------------------------------ */
@@ -78,7 +87,17 @@ export interface VoiceUndoCommand {
   kind: 'undo';
 }
 
-export type VoiceCommand = VoicePointCommand | VoiceUndoCommand;
+export interface VoiceHelpCommand {
+  kind: 'help';
+}
+
+/** Wake word heard with no reason yet; waits for a completion (player may be given). */
+export interface VoiceArmCommand {
+  kind: 'arm';
+  slot: Slot | null;
+}
+
+export type VoiceCommand = VoicePointCommand | VoiceUndoCommand | VoiceHelpCommand | VoiceArmCommand;
 
 /** Lowercase, strip punctuation, collapse whitespace. */
 export function normalizeTranscript(text: string): string {
@@ -192,30 +211,65 @@ function findKeyword(tokens: string[]): { index: number; def: KeywordDef } | nul
   return null;
 }
 
+function pointCommand(slot: Slot, def: KeywordDef): VoicePointCommand {
+  return {
+    kind: 'point',
+    slot,
+    shotTypeId: def.shotTypeId,
+    keyword: def.keyword,
+    attribution: def.attribution
+  };
+}
+
+/** Commands that start with the wake word "point". */
 export function parseVoiceCommand(
   transcript: string,
   leftName: string,
   rightName: string
 ): VoiceCommand | null {
   const tokens = normalizeTranscript(transcript).split(' ').filter(Boolean);
-
-  if (tokens.length >= 2 && tokens[0] === 'undo' && tokens[1] === 'undo') {
-    return { kind: 'undo' };
-  }
-
-  if (tokens.length < 3 || tokens[0] !== 'point') return null;
+  if (tokens.length === 0 || tokens[0] !== 'point') return null;
   const rest = tokens.slice(1);
+
+  if (rest.length === 0) return { kind: 'arm', slot: null };
+  if (rest.length === 1 && rest[0] === 'undo') return { kind: 'undo' };
+  if (rest.length === 1 && rest[0] === 'help') return { kind: 'help' };
+
   const found = findKeyword(rest);
-  if (!found || found.index === 0) return null;
-  const slot = resolvePlayer(rest.slice(0, found.index), leftName, rightName);
-  if (!slot) return null;
-  return {
-    kind: 'point',
-    slot,
-    shotTypeId: found.def.shotTypeId,
-    keyword: found.def.keyword,
-    attribution: found.def.attribution
-  };
+  if (found && found.index > 0) {
+    const slot = resolvePlayer(rest.slice(0, found.index), leftName, rightName);
+    return slot ? pointCommand(slot, found.def) : null;
+  }
+  if (found) return null; // reason without a player
+
+  // No reason: "point <player>" arms and waits for the reason.
+  const slot = resolvePlayer(rest, leftName, rightName);
+  return slot ? { kind: 'arm', slot } : null;
+}
+
+/** Commands spoken while armed: no wake word, and the player may be omitted. */
+export function parseVoiceCompletion(
+  transcript: string,
+  leftName: string,
+  rightName: string,
+  armedSlot: Slot | null
+): VoiceCommand | null {
+  let tokens = normalizeTranscript(transcript).split(' ').filter(Boolean);
+  // Tolerate a repeated wake word while armed.
+  if (tokens[0] === 'point') tokens = tokens.slice(1);
+  if (tokens.length === 0) return null;
+
+  if (tokens.length === 1 && tokens[0] === 'undo') return { kind: 'undo' };
+  if (tokens.length === 1 && tokens[0] === 'help') return { kind: 'help' };
+
+  const found = findKeyword(tokens);
+  if (!found) return null;
+  if (found.index > 0) {
+    const slot = resolvePlayer(tokens.slice(0, found.index), leftName, rightName);
+    return slot ? pointCommand(slot, found.def) : null;
+  }
+  // Bare reason: only allowed when a player was given while arming.
+  return armedSlot ? pointCommand(armedSlot, found.def) : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -235,6 +289,50 @@ function scheduleUnmute(): void {
   unmuteTimer = window.setTimeout(() => {
     speechMuted = false;
   }, 1000);
+}
+
+let audioContext: AudioContext | null = null;
+
+/** Create/resume the tone context; call from a user gesture (the mic toggle). */
+export function initVoiceAudio(): void {
+  try {
+    if (typeof AudioContext === 'undefined') return;
+    if (!audioContext) audioContext = new AudioContext();
+    if (audioContext.state === 'suspended') {
+      void audioContext.resume();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function playTone(frequency: number): void {
+  speechMuted = true;
+  window.clearTimeout(unmuteTimer);
+  try {
+    initVoiceAudio();
+    const ctx = audioContext;
+    if (ctx && ctx.state === 'running') {
+      const now = ctx.currentTime;
+      const end = now + TONE_DURATION_MS / 1000;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start(now);
+      oscillator.stop(end + 0.02);
+    }
+  } catch {
+    /* ignore */
+  }
+  unmuteTimer = window.setTimeout(() => {
+    speechMuted = false;
+  }, TONE_DURATION_MS + 1000);
 }
 
 export function speak(text: string): void {

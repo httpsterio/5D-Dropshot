@@ -19,13 +19,19 @@
   import type { Slot } from '../lib/types';
   import { computeWinProb, h2hMatchWinRate, inferP } from '../lib/winProb';
   import {
+    TONE_HIGH,
+    TONE_LOW,
+    VOICE_HELP_TEXT,
     VOICE_LANG,
     cancelSpeech,
     getSpeechRecognitionCtor,
     hasSpeechRecognition,
+    initVoiceAudio,
     isSpeechMuted,
     normalizeTranscript,
     parseVoiceCommand,
+    parseVoiceCompletion,
+    playTone,
     speak,
     type SpeechRecognitionEventLike,
     type SpeechRecognitionLike
@@ -143,6 +149,7 @@
   // ---------- Hands-free voice scoring ----------
 
   const speechSupported = hasSpeechRecognition();
+  const VOICE_ARM_TIMEOUT_MS = 8000;
   let voiceOn = $state(false);
   let voiceError = $state('');
   let voiceStatus = $state('Listening');
@@ -152,6 +159,9 @@
   let recognitionRunning = false;
   let lastHeard = '';
   let lastHeardAt = 0;
+  let voiceArmed = false;
+  let armedSlot: Slot | null = null;
+  let voiceArmTimer: number | undefined;
   let nosleep: { enable: () => void; disable: () => void } | null = null;
 
   const voiceBlocked = $derived(
@@ -193,6 +203,7 @@
     voiceError = '';
     voiceStatus = 'Listening';
     voiceOn = true;
+    initVoiceAudio();
     try { nosleep?.enable(); } catch { /* ignore */ }
     startRecognition();
   }
@@ -203,6 +214,7 @@
     window.clearTimeout(voiceRestartTimer);
     window.clearTimeout(voiceStatusTimer);
     recognitionRunning = false;
+    disarmVoice();
     try { recognition?.abort(); } catch { /* ignore */ }
     try { nosleep?.disable(); } catch { /* ignore */ }
     cancelSpeech();
@@ -258,12 +270,34 @@
     }
   }
 
+  function armVoice(slot: Slot | null): void {
+    voiceArmed = true;
+    armedSlot = slot;
+    window.clearTimeout(voiceStatusTimer);
+    voiceStatus = 'Ready';
+    playTone(TONE_HIGH);
+    window.clearTimeout(voiceArmTimer);
+    voiceArmTimer = window.setTimeout(() => {
+      disarmVoice();
+      playTone(TONE_LOW);
+      flashVoiceStatus('Again?');
+    }, VOICE_ARM_TIMEOUT_MS);
+  }
+
+  function disarmVoice(): void {
+    voiceArmed = false;
+    armedSlot = null;
+    window.clearTimeout(voiceArmTimer);
+  }
+
   function handleVoiceTranscript(transcript: string): void {
     const m = app.activeMatch;
     if (!m || !m.leftPlayerId || !m.rightPlayerId) return;
     const leftName = getPlayer(m.leftPlayerId)?.name ?? '';
     const rightName = getPlayer(m.rightPlayerId)?.name ?? '';
-    const command = parseVoiceCommand(transcript, leftName, rightName);
+    const command = voiceArmed
+      ? parseVoiceCompletion(transcript, leftName, rightName, armedSlot)
+      : parseVoiceCommand(transcript, leftName, rightName);
     if (!command) return;
 
     const heard = normalizeTranscript(transcript);
@@ -271,6 +305,18 @@
     if (heard === lastHeard && now - lastHeardAt < 3000) return;
     lastHeard = heard;
     lastHeardAt = now;
+
+    if (command.kind === 'arm') {
+      armVoice(command.slot);
+      return;
+    }
+    disarmVoice();
+
+    if (command.kind === 'help') {
+      speak(VOICE_HELP_TEXT);
+      flashVoiceStatus(heard);
+      return;
+    }
 
     if (command.kind === 'undo') {
       if (!undoPoint()) return;
@@ -288,8 +334,8 @@
     const opponentScore = command.slot === 'left' ? s.right : s.left;
     speak(
       command.attribution === 'error'
-        ? `Point ${scorerName}, ${opponentName} ${command.keyword}, ${scorerScore} ${opponentScore}`
-        : `Point ${scorerName}, ${command.keyword}, ${scorerScore} ${opponentScore}`
+        ? `${scorerName}, ${opponentName} ${command.keyword}, ${scorerScore} ${opponentScore}`
+        : `${scorerName}, ${command.keyword}, ${scorerScore} ${opponentScore}`
     );
     flashVoiceStatus(heard);
   }
@@ -354,14 +400,30 @@
 
       <!-- Last points -->
       <div class="flex-1 overflow-y-auto px-3 py-2 min-h-0">
-        <div class="flex items-center justify-between mb-2 px-1">
+        <div class="flex items-center mb-2 px-1">
           <span class="text-[10px] uppercase tracking-wide text-base-content/50">Last points</span>
           {#if recentPoints.length > 0}
-            <span class="text-[10px] uppercase tracking-wide text-base-content/40 flex items-center gap-1">
+            <span class="text-[10px] uppercase tracking-wide text-base-content/40 flex items-center gap-1 ml-2">
               Newest
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
             </span>
           {/if}
+          <div class="ml-auto flex items-center gap-1.5">
+            <button class="btn btn-ghost btn-xs" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+              Undo last point
+            </button>
+            {#if speechSupported}
+              <button
+                class="btn btn-xs {voiceOn ? 'btn-success' : 'btn-ghost'}"
+                aria-label={voiceOn ? 'Turn off voice scoring' : 'Turn on voice scoring'}
+                aria-pressed={voiceOn}
+                onclick={toggleVoice}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+            {/if}
+          </div>
         </div>
         {#if recentPoints.length === 0}
           <p class="text-center text-sm text-base-content/40 py-4">No points yet</p>
@@ -391,23 +453,7 @@
       </div>
 
       <!-- Action row -->
-      <div class="border-t border-base-300 px-3 pt-3 space-y-2" style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom))">
-        <div class="flex items-center gap-2">
-          <button class="btn btn-ghost btn-sm flex-1" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
-            Undo last point
-          </button>
-          {#if speechSupported}
-            <button
-              class="btn btn-sm {voiceOn ? 'btn-success' : 'btn-ghost'}"
-              aria-label={voiceOn ? 'Turn off voice scoring' : 'Turn on voice scoring'}
-              aria-pressed={voiceOn}
-              onclick={toggleVoice}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-          {/if}
-        </div>
+      <div class="border-t border-base-300 px-3 pt-3" style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom))">
         <div class="grid grid-cols-2 gap-2">
           <button class="btn btn-info h-16 text-base" onclick={() => openScore('left')}>+ {leftName}</button>
           <button class="btn btn-warning h-16 text-base" onclick={() => openScore('right')}>+ {rightName}</button>
