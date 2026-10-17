@@ -52,6 +52,7 @@ export interface MatchConfig {
   winByMargin: number;
   theme: string;
   wakeWord: string;
+  voiceEngine: 'chrome' | 'offline';
 }
 
 export interface AppData {

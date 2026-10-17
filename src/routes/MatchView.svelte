@@ -22,10 +22,7 @@
     TONE_HIGH,
     TONE_LOW,
     VOICE_HELP_TEXT,
-    VOICE_LANG,
     cancelSpeech,
-    getSpeechRecognitionCtor,
-    hasSpeechRecognition,
     initVoiceAudio,
     isSpeechMuted,
     normalizeTranscript,
@@ -33,10 +30,10 @@
     parseVoiceCommand,
     parseVoiceCompletion,
     playTone,
-    speak,
-    type SpeechRecognitionEventLike,
-    type SpeechRecognitionLike
+    speak
   } from '../lib/voice';
+  import { createChromeEngine, hasChromeEngine, type VoiceEngine, type VoiceEngineState } from '../lib/voiceEngine';
+  import { createSherpaEngine } from '../lib/sherpaEngine';
 
   // Auto-create active match if none exists when entering this view
   $effect(() => {
@@ -150,15 +147,16 @@
 
   // ---------- Hands-free voice scoring ----------
 
-  const speechSupported = hasSpeechRecognition();
   const VOICE_ARM_TIMEOUT_MS = 8000;
+  const engineChoice = $derived(app.config.voiceEngine === 'offline' ? 'offline' : 'chrome');
+  const speechSupported = $derived(
+    engineChoice === 'offline' ? typeof WebAssembly !== 'undefined' : hasChromeEngine()
+  );
   let voiceOn = $state(false);
   let voiceError = $state('');
   let voiceStatus = $state('Listening');
   let voiceStatusTimer: number | undefined;
-  let voiceRestartTimer: number | undefined;
-  let recognition: SpeechRecognitionLike | null = null;
-  let recognitionRunning = false;
+  let engine: VoiceEngine | null = null;
   let lastHeard = '';
   let lastHeardAt = 0;
   let voiceArmed = false;
@@ -213,11 +211,10 @@
   function stopVoice(error = ''): void {
     voiceOn = false;
     voiceError = error;
-    window.clearTimeout(voiceRestartTimer);
     window.clearTimeout(voiceStatusTimer);
-    recognitionRunning = false;
     disarmVoice();
-    try { recognition?.abort(); } catch { /* ignore */ }
+    engine?.stop();
+    engine = null;
     try { nosleep?.disable(); } catch { /* ignore */ }
     cancelSpeech();
   }
@@ -229,46 +226,29 @@
 
   function startRecognition(): void {
     if (!voiceOn) return;
-    const Recognition = getSpeechRecognitionCtor();
-    if (!Recognition) return;
-    if (!recognition) {
-      const rec = new Recognition();
-      rec.lang = VOICE_LANG;
-      rec.continuous = true;
-      rec.interimResults = false;
-      rec.maxAlternatives = 1;
-      rec.onstart = () => { recognitionRunning = true; };
-      rec.onend = () => {
-        recognitionRunning = false;
-        if (!voiceOn) return;
-        // Chrome on Android ends the session after silence; restart it.
-        window.clearTimeout(voiceRestartTimer);
-        voiceRestartTimer = window.setTimeout(() => {
-          if (voiceOn) startRecognition();
-        }, 250);
-      };
-      rec.onresult = onVoiceResult;
-      rec.onerror = (event) => {
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          stopVoice(`Voice error: ${event.error}`);
-        }
-      };
-      recognition = rec;
-    }
-    if (recognitionRunning) return;
-    try {
-      recognition.start();
-    } catch {
-      /* ignored: already started or not available */
-    }
+    engine = engineChoice === 'offline' ? createSherpaEngine() : createChromeEngine();
+    engine.start({
+      onPartial: () => {
+        // Partials exist for the offline engine; the match screen shows finals only.
+      },
+      onFinal: (text) => handleEngineFinal(text),
+      onState: (state, detail) => handleEngineState(state, detail)
+    });
   }
 
-  function onVoiceResult(event: SpeechRecognitionEventLike): void {
+  function handleEngineFinal(transcript: string): void {
     if (!voiceOn || voiceBlocked || isSpeechMuted()) return;
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
-      if (!result.isFinal) continue;
-      handleVoiceTranscript(result[0]?.transcript ?? '');
+    handleVoiceTranscript(transcript);
+  }
+
+  function handleEngineState(state: VoiceEngineState, detail?: string): void {
+    if (state === 'error') {
+      stopVoice(detail ?? 'Voice error');
+    } else if (state === 'loading') {
+      voiceError = '';
+      voiceStatus = detail ?? 'Loading…';
+    } else if (state === 'listening' && !voiceArmed) {
+      voiceStatus = 'Listening';
     }
   }
 

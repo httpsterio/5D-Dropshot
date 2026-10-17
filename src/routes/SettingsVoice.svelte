@@ -1,9 +1,63 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { app, setConfig } from '../stores/app.svelte';
   import AppBar from '../components/AppBar.svelte';
   import { WAKE_WORD_PRESETS, validateWakeWord } from '../lib/voice';
+  import { SHERPA_DOWNLOAD_MB, isSherpaLoaded, loadSherpaModel } from '../lib/sherpaEngine';
 
   const CUSTOM = 'custom';
+
+  let engineMode = $state(app.config.voiceEngine === 'offline' ? 'offline' : 'chrome');
+  let engineBusy = $state(false);
+  let engineProgress = $state(0);
+  let engineError = $state('');
+  let engineReady = $state(isSherpaLoaded());
+
+  onMount(() => {
+    if (app.config.voiceEngine === 'offline' && !isSherpaLoaded()) {
+      engineMode = 'offline';
+      void ensureOffline('offline');
+    }
+  });
+
+  function selectEngine(value: string): void {
+    engineError = '';
+    if (value === 'chrome') {
+      engineMode = 'chrome';
+      setConfig({ voiceEngine: 'chrome' });
+      return;
+    }
+    if (isSherpaLoaded()) {
+      engineReady = true;
+      engineMode = 'offline';
+      setConfig({ voiceEngine: 'offline' });
+      return;
+    }
+    engineMode = 'offline';
+    void ensureOffline('chrome');
+  }
+
+  async function ensureOffline(revertTo: string): Promise<void> {
+    if (engineBusy) return;
+    engineBusy = true;
+    engineProgress = 0;
+    engineError = '';
+    try {
+      await loadSherpaModel((loaded, total) => {
+        engineProgress = total > 0 ? Math.floor((loaded / total) * 100) : 0;
+      });
+      engineReady = true;
+      if (engineMode === 'offline') {
+        setConfig({ voiceEngine: 'offline' });
+      }
+    } catch (error) {
+      // Keep the previous engine and show why loading failed.
+      engineError = error instanceof Error ? error.message : String(error);
+      engineMode = revertTo;
+    } finally {
+      engineBusy = false;
+    }
+  }
 
   function isPreset(value: string): boolean {
     return WAKE_WORD_PRESETS.includes(value);
@@ -45,6 +99,21 @@
 <div class="flex flex-col h-full">
   <AppBar title="Voice commands" showBack />
   <div class="flex-1 overflow-y-auto p-4 space-y-4">
+
+    <label class="block">
+      <span class="text-sm text-base-content/60">Speech engine</span>
+      <select class="select select-bordered w-full mt-1" value={engineMode} onchange={(e) => selectEngine(e.currentTarget.value)}>
+        <option value="chrome">Chrome (needs internet)</option>
+        <option value="offline">Offline (downloads about {SHERPA_DOWNLOAD_MB} MB once)</option>
+      </select>
+      {#if engineBusy}
+        <span class="text-xs text-base-content/50 block mt-1">Loading… {engineProgress}%</span>
+      {:else if engineError}
+        <span class="text-xs text-error block mt-1">{engineError}</span>
+      {:else if engineMode === 'offline' && engineReady}
+        <span class="text-xs text-success block mt-1">Ready</span>
+      {/if}
+    </label>
 
     <label class="block">
       <span class="text-sm text-base-content/60">Wake word</span>

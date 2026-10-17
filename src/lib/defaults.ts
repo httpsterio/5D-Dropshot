@@ -19,7 +19,8 @@ export const DEFAULT_CONFIG: MatchConfig = {
   winThreshold: 21,
   winByMargin: 2,
   theme: 'sunset',
-  wakeWord: 'point'
+  wakeWord: 'point',
+  voiceEngine: 'chrome'
 };
 
 export function emptyAppData(): AppData {

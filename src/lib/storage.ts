@@ -16,6 +16,10 @@ export function load(): AppData {
     if (typeof parsed.config?.wakeWord !== 'string' || parsed.config.wakeWord.trim() === '') {
       parsed.config = { ...parsed.config, wakeWord: DEFAULT_CONFIG.wakeWord };
     }
+    // Same for the speech engine setting.
+    if (parsed.config?.voiceEngine !== 'chrome' && parsed.config?.voiceEngine !== 'offline') {
+      parsed.config = { ...parsed.config, voiceEngine: DEFAULT_CONFIG.voiceEngine };
+    }
     return parsed;
   } catch {
     return emptyAppData();
