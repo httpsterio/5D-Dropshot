@@ -15,15 +15,16 @@ export default defineConfig({
         name: 'DropShot',
         short_name: 'DropShot',
         description: 'Badminton score tracker',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0C0C0C',
+        background_color: '#0C0C0C',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: 'icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          { src: 'icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {
