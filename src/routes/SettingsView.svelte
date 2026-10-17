@@ -30,6 +30,15 @@
         </button>
       </li>
       <li>
+        <button class="w-full text-left px-4 py-4 active:bg-base-200 flex justify-between items-center" onclick={() => go({ name: 'settingsVoice' })}>
+          <div>
+            <div class="font-medium">Voice commands</div>
+            <div class="text-xs text-base-content/60">Wake word: {app.config.wakeWord}</div>
+          </div>
+          <span class="text-base-content/40">›</span>
+        </button>
+      </li>
+      <li>
         <button class="w-full text-left px-4 py-4 active:bg-base-200 flex justify-between items-center" onclick={() => go({ name: 'settingsMatchConfig' })}>
           <div>
             <div class="font-medium">Match config</div>

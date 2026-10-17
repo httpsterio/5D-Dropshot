@@ -29,6 +29,7 @@
     initVoiceAudio,
     isSpeechMuted,
     normalizeTranscript,
+    omitWakeWord,
     parseVoiceCommand,
     parseVoiceCompletion,
     playTone,
@@ -48,6 +49,7 @@
   const rightPlayer = $derived(match ? getPlayer(match.rightPlayerId) : undefined);
   const leftName = $derived(leftPlayer?.name ?? 'Player 1');
   const rightName = $derived(rightPlayer?.name ?? 'Player 2');
+  const wakeWord = $derived(app.config.wakeWord || 'point');
 
   // Most recent first; up to 8 entries (5 full + 3 fading)
   const recentPoints = $derived.by(() => {
@@ -296,8 +298,8 @@
     const leftName = getPlayer(m.leftPlayerId)?.name ?? '';
     const rightName = getPlayer(m.rightPlayerId)?.name ?? '';
     const command = voiceArmed
-      ? parseVoiceCompletion(transcript, leftName, rightName, armedSlot)
-      : parseVoiceCommand(transcript, leftName, rightName);
+      ? parseVoiceCompletion(transcript, leftName, rightName, armedSlot, wakeWord)
+      : parseVoiceCommand(transcript, leftName, rightName, wakeWord);
     if (!command) return;
 
     const heard = normalizeTranscript(transcript);
@@ -313,7 +315,7 @@
     disarmVoice();
 
     if (command.kind === 'help') {
-      speak(VOICE_HELP_TEXT);
+      speak(omitWakeWord(VOICE_HELP_TEXT, wakeWord));
       flashVoiceStatus(heard);
       return;
     }
@@ -321,7 +323,7 @@
     if (command.kind === 'undo') {
       if (!undoPoint()) return;
       const s = scoreOf(m);
-      speak(`Undone, ${leftName} ${s.left}, ${rightName} ${s.right}`);
+      speak(omitWakeWord(`Undone, ${leftName} ${s.left}, ${rightName} ${s.right}`, wakeWord));
       flashVoiceStatus(heard);
       return;
     }
@@ -333,9 +335,12 @@
     const scorerScore = command.slot === 'left' ? s.left : s.right;
     const opponentScore = command.slot === 'left' ? s.right : s.left;
     speak(
-      command.attribution === 'error'
-        ? `${scorerName}, ${opponentName} ${command.keyword}, ${scorerScore} ${opponentScore}`
-        : `${scorerName}, ${command.keyword}, ${scorerScore} ${opponentScore}`
+      omitWakeWord(
+        command.attribution === 'error'
+          ? `${scorerName}, ${opponentName} ${command.keyword}, ${scorerScore} ${opponentScore}`
+          : `${scorerName}, ${command.keyword}, ${scorerScore} ${opponentScore}`,
+        wakeWord
+      )
     );
     flashVoiceStatus(heard);
   }

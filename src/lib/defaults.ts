@@ -18,7 +18,8 @@ export const DEFAULT_SHOT_TYPES: ShotType[] = [
 export const DEFAULT_CONFIG: MatchConfig = {
   winThreshold: 21,
   winByMargin: 2,
-  theme: 'sunset'
+  theme: 'sunset',
+  wakeWord: 'point'
 };
 
 export function emptyAppData(): AppData {

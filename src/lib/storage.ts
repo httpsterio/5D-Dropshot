@@ -1,5 +1,5 @@
 import type { AppData } from './types';
-import { emptyAppData, SCHEMA_VERSION } from './defaults';
+import { DEFAULT_CONFIG, emptyAppData, SCHEMA_VERSION } from './defaults';
 import { rebuildEloFromHistory } from './elo';
 
 const KEY = 'dropshot:v1';
@@ -11,6 +11,10 @@ export function load(): AppData {
     const parsed = JSON.parse(raw) as AppData;
     if (parsed.schemaVersion !== SCHEMA_VERSION) {
       return migrate(parsed);
+    }
+    // Saves from before the wake word setting exist: backfill only this field.
+    if (typeof parsed.config?.wakeWord !== 'string' || parsed.config.wakeWord.trim() === '') {
+      parsed.config = { ...parsed.config, wakeWord: DEFAULT_CONFIG.wakeWord };
     }
     return parsed;
   } catch {

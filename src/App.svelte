@@ -12,6 +12,7 @@
   import SettingsPlayers from './routes/SettingsPlayers.svelte';
   import SettingsShotTypes from './routes/SettingsShotTypes.svelte';
   import SettingsMatchConfig from './routes/SettingsMatchConfig.svelte';
+  import SettingsVoice from './routes/SettingsVoice.svelte';
   import SettingsTheme from './routes/SettingsTheme.svelte';
   import SettingsData from './routes/SettingsData.svelte';
   import PlayerProfile from './routes/PlayerProfile.svelte';
@@ -70,6 +71,8 @@
           <SettingsShotTypes />
         {:else if route.name === 'settingsMatchConfig'}
           <SettingsMatchConfig />
+        {:else if route.name === 'settingsVoice'}
+          <SettingsVoice />
         {:else if route.name === 'settingsTheme'}
           <SettingsTheme />
         {:else if route.name === 'settingsData'}

@@ -2,6 +2,7 @@ import type { AppData, Player, ShotType, FinishedMatch, ActiveMatch, MatchConfig
 import { load, save } from '../lib/storage';
 import { uid } from '../lib/id';
 import { computeElo, rebuildEloFromHistory, DEFAULT_ELO } from '../lib/elo';
+import { DEFAULT_CONFIG } from '../lib/defaults';
 
 const initial = load();
 
@@ -207,7 +208,7 @@ export function replaceAll(data: Pick<AppData, 'players' | 'shotTypes' | 'matche
   app.players = data.players;
   app.shotTypes = data.shotTypes;
   app.matches = data.matches;
-  app.config = data.config;
+  app.config = { ...DEFAULT_CONFIG, ...data.config };
   app.activeMatch = null;
   app.historyVersion++;
   const needsElo = app.players.some(p => typeof p.elo !== 'number');

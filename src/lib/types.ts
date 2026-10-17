@@ -51,6 +51,7 @@ export interface MatchConfig {
   winThreshold: number;
   winByMargin: number;
   theme: string;
+  wakeWord: string;
 }
 
 export interface AppData {

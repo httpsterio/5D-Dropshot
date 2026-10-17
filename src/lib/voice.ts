@@ -130,6 +130,50 @@ const KEYWORDS: KeywordDef[] = [
   { variants: ['error'], shotTypeId: 'error-other', keyword: 'error', attribution: 'error' }
 ];
 
+/* ------------------------------------------------------------------ */
+/* Wake word                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Preset choices offered in Settings; "Custom" is handled by the UI. */
+export const WAKE_WORD_PRESETS = ['point', 'plus', 'shuttle', 'okay'];
+
+const RESERVED_WAKE_WORDS = [
+  'left', 'right', 'player', 'one', 'two', 'won', 'to', 'too', 'undo', 'help',
+  'smash', 'drop', 'dropshot', 'kill', 'clear', 'drive',
+  'service', 'serve', 'fault', 'net', 'out',
+  'mishit', 'miss', 'mis', 'hit', 'error', 'other', 'winner', 'shot', 'bounds'
+];
+
+export type WakeWordCheck = { ok: true; value: string } | { ok: false; reason: string };
+
+export function validateWakeWord(input: string): WakeWordCheck {
+  const value = input.trim().toLowerCase();
+  if (!value) return { ok: false, reason: 'Enter a wake word.' };
+  if (!/^[a-z]+(?: [a-z]+)?$/.test(value)) {
+    return { ok: false, reason: 'Use one or two words with letters and spaces only.' };
+  }
+  const clash = value.split(' ').find((word) => RESERVED_WAKE_WORDS.includes(word));
+  if (clash) return { ok: false, reason: `"${clash}" is already a command word.` };
+  return { ok: true, value };
+}
+
+function wakeWordParts(wakeWord: string): string[] {
+  return wakeWord.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** Remove whole-word occurrences of the wake word (readbacks must never contain it). */
+export function omitWakeWord(text: string, wakeWord: string): string {
+  const words = wakeWordParts(wakeWord);
+  if (words.length === 0) return text;
+  const pattern = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  return text
+    .replace(new RegExp(`\\b${pattern}\\b`, 'gi'), '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
+}
+
 function editDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
@@ -221,15 +265,19 @@ function pointCommand(slot: Slot, def: KeywordDef): VoicePointCommand {
   };
 }
 
-/** Commands that start with the wake word "point". */
+/** Commands that start with the configured wake word. */
 export function parseVoiceCommand(
   transcript: string,
   leftName: string,
-  rightName: string
+  rightName: string,
+  wakeWord: string
 ): VoiceCommand | null {
   const tokens = normalizeTranscript(transcript).split(' ').filter(Boolean);
-  if (tokens.length === 0 || tokens[0] !== 'point') return null;
-  const rest = tokens.slice(1);
+  const wake = wakeWordParts(wakeWord);
+  if (wake.length === 0 || tokens.length < wake.length || !wake.every((w, i) => tokens[i] === w)) {
+    return null;
+  }
+  const rest = tokens.slice(wake.length);
 
   if (rest.length === 0) return { kind: 'arm', slot: null };
   if (rest.length === 1 && rest[0] === 'undo') return { kind: 'undo' };
@@ -242,7 +290,7 @@ export function parseVoiceCommand(
   }
   if (found) return null; // reason without a player
 
-  // No reason: "point <player>" arms and waits for the reason.
+  // No reason: "wake word <player>" arms and waits for the reason.
   const slot = resolvePlayer(rest, leftName, rightName);
   return slot ? { kind: 'arm', slot } : null;
 }
@@ -252,11 +300,15 @@ export function parseVoiceCompletion(
   transcript: string,
   leftName: string,
   rightName: string,
-  armedSlot: Slot | null
+  armedSlot: Slot | null,
+  wakeWord: string
 ): VoiceCommand | null {
   let tokens = normalizeTranscript(transcript).split(' ').filter(Boolean);
   // Tolerate a repeated wake word while armed.
-  if (tokens[0] === 'point') tokens = tokens.slice(1);
+  const wake = wakeWordParts(wakeWord);
+  if (wake.length > 0 && tokens.length >= wake.length && wake.every((w, i) => tokens[i] === w)) {
+    tokens = tokens.slice(wake.length);
+  }
   if (tokens.length === 0) return null;
 
   if (tokens.length === 1 && tokens[0] === 'undo') return { kind: 'undo' };
