@@ -7,6 +7,8 @@ import type { EngineDiagnostics, VoiceEngine, VoiceEngineHandlers, VoiceEngineSt
 /* ------------------------------------------------------------------ */
 
 const SAMPLE_RATE = 16000;
+/** A complete command in a partial result is finalized after this silence. */
+const PARTIAL_FINAL_MS = 500;
 
 const MODEL_FILES = [
   { name: 'encoder.int8.onnx', bytes: 42_845_182 },
@@ -238,8 +240,8 @@ async function doLoad(): Promise<void> {
     decodingMethod: 'greedy_search',
     maxActivePaths: 4,
     enableEndpoint: 1,
-    rule1MinTrailingSilence: 2.4,
-    rule2MinTrailingSilence: 1.2,
+    rule1MinTrailingSilence: 0.8,
+    rule2MinTrailingSilence: 0.8,
     rule3MinUtteranceLength: 20,
     hotwordsFile: '',
     hotwordsScore: 1.5,
@@ -279,6 +281,10 @@ class SherpaEngine implements VoiceEngine {
   private diagGetUserMedia = 'not requested';
   private inputLevel = 0;
   private chunksFed = 0;
+  private finalCount = 0;
+  private endpointCount = 0;
+  private lastFinalText = '';
+  private partialTimer: number | undefined;
 
   start(handlers: VoiceEngineHandlers): void {
     this.handlers = handlers;
@@ -290,6 +296,7 @@ class SherpaEngine implements VoiceEngine {
 
   stop(): void {
     this.running = false;
+    this.clearPartialTimer();
     try {
       this.stopAudio();
     } catch {
@@ -314,9 +321,25 @@ class SherpaEngine implements VoiceEngine {
       audioContextSampleRate: this.audioContext?.sampleRate ?? primedAudioContext?.sampleRate ?? 0,
       inputLevel: this.inputLevel,
       chunksFed: this.chunksFed,
-      partialText: this.lastPartial
+      partialText: this.lastPartial,
+      finalCount: this.finalCount,
+      endpointCount: this.endpointCount,
+      lastFinalText: this.lastFinalText
     };
     this.handlers?.onDiagnostics?.(diagnostics);
+  }
+
+  /** Emits one text through the same path for endpoints and stable partials. */
+  private emitFinal(text: string): void {
+    if (!text) return;
+    this.finalCount += 1;
+    this.lastFinalText = text;
+    this.handlers?.onFinal(text);
+  }
+
+  private clearPartialTimer(): void {
+    window.clearTimeout(this.partialTimer);
+    this.partialTimer = undefined;
   }
 
   /** Single place where engine failures land. */
@@ -324,6 +347,7 @@ class SherpaEngine implements VoiceEngine {
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     const alreadyFailed = this.diagState === 'error';
     this.running = false;
+    this.clearPartialTimer();
     this.diagState = 'error';
     this.diagError = message;
     try {
@@ -369,6 +393,10 @@ class SherpaEngine implements VoiceEngine {
       this.stream = rec.createStream();
       this.lastPartial = '';
       this.wasMuted = false;
+      this.clearPartialTimer();
+      this.finalCount = 0;
+      this.endpointCount = 0;
+      this.lastFinalText = '';
       this.diagState = 'listening';
       this.emitDiagnostics();
       handlers.onState('listening');
@@ -467,6 +495,7 @@ class SherpaEngine implements VoiceEngine {
 
     if (isSpeechMuted()) {
       // Speech or a tone is playing: do not feed, drop any partial text.
+      this.clearPartialTimer();
       if (this.lastPartial) {
         this.lastPartial = '';
         this.handlers?.onPartial('');
@@ -496,10 +525,37 @@ class SherpaEngine implements VoiceEngine {
     if (text !== this.lastPartial) {
       this.lastPartial = text;
       this.handlers?.onPartial(text);
+
+      // Partials often never reach an endpoint on this model. If the text is
+      // already a complete command, finalize it once it stops changing.
+      this.clearPartialTimer();
+      if (text && this.handlers?.isCompletePartial?.(text)) {
+        const stableStream = stream;
+        this.partialTimer = window.setTimeout(() => {
+          this.partialTimer = undefined;
+          if (
+            !this.running ||
+            this.stream !== stableStream ||
+            this.lastPartial !== text ||
+            isSpeechMuted()
+          ) {
+            return;
+          }
+          this.emitFinal(text);
+          rec.reset(stableStream);
+          this.lastPartial = '';
+          this.handlers?.onPartial('');
+          this.emitDiagnostics();
+        }, PARTIAL_FINAL_MS);
+      }
+    } else if (!text) {
+      this.clearPartialTimer();
     }
 
     if (rec.isEndpoint(stream)) {
-      if (text) this.handlers?.onFinal(text);
+      this.endpointCount += 1;
+      this.clearPartialTimer();
+      if (text) this.emitFinal(text);
       rec.reset(stream);
       this.lastPartial = '';
       this.handlers?.onPartial('');

@@ -244,7 +244,10 @@
             audioContextSampleRate: 0,
             inputLevel: 0,
             chunksFed: 0,
-            partialText: ''
+            partialText: '',
+            finalCount: 0,
+            endpointCount: 0,
+            lastFinalText: ''
           }
         : null;
     engine = engineChoice === 'offline' ? createSherpaEngine() : createChromeEngine();
@@ -253,6 +256,7 @@
         // Partials exist for the offline engine; the match screen shows finals only.
       },
       onFinal: (text) => handleEngineFinal(text),
+      isCompletePartial: (text) => isCompleteVoiceCommand(text),
       onState: (state, detail) => handleEngineState(state, detail),
       onDiagnostics: (next) => {
         diagnostics = next;
@@ -262,7 +266,29 @@
 
   function handleEngineFinal(transcript: string): void {
     if (!voiceOn || voiceBlocked || isSpeechMuted()) return;
-    handleVoiceTranscript(transcript);
+    // sherpa-onnx can return uppercase text or different spacing; Chrome text
+    // goes through this same function, so both are normalized before parsing.
+    const normalized = normalizeTranscript(transcript);
+    if (!normalized) return;
+    handleVoiceTranscript(normalized);
+  }
+
+  /** True when the partial text is a complete command that can be finalized early. */
+  function isCompleteVoiceCommand(transcript: string): boolean {
+    if (!voiceOn || voiceBlocked || isSpeechMuted()) return false;
+    const m = app.activeMatch;
+    if (!m || !m.leftPlayerId || !m.rightPlayerId) return false;
+    const normalized = normalizeTranscript(transcript);
+    if (!normalized) return false;
+    const l = getPlayer(m.leftPlayerId)?.name ?? '';
+    const r = getPlayer(m.rightPlayerId)?.name ?? '';
+    const command = voiceArmed
+      ? parseVoiceCompletion(normalized, l, r, armedSlot, wakeWord)
+      : parseVoiceCommand(normalized, l, r, wakeWord);
+    if (!command) return false;
+    // A bare wake word/player is only an arm prefix; wait for an endpoint so
+    // a following reason is not cut off.
+    return voiceArmed || command.kind !== 'arm';
   }
 
   function handleEngineState(state: VoiceEngineState, detail?: string): void {
@@ -434,7 +460,9 @@
             <span>{diagnostics.inputLevel.toFixed(3)}</span>
           </div>
           <div>chunks: {diagnostics.chunksFed}</div>
+          <div>finals: {diagnostics.finalCount} · endpoints: {diagnostics.endpointCount}</div>
           <div class="truncate">partial: {diagnostics.partialText}</div>
+          <div class="truncate">last final: {diagnostics.lastFinalText || '—'}</div>
         </div>
       {/if}
 

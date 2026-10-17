@@ -19,6 +19,12 @@ export interface EngineDiagnostics {
   inputLevel: number;
   chunksFed: number;
   partialText: string;
+  /** Final results emitted to the command path. */
+  finalCount: number;
+  /** Endpoints reported by the recognizer (whether or not they carried text). */
+  endpointCount: number;
+  /** Exact text of the most recent final result, before normalization. */
+  lastFinalText: string;
 }
 
 export interface VoiceEngineHandlers {
@@ -26,6 +32,11 @@ export interface VoiceEngineHandlers {
   onPartial(text: string): void;
   /** Final text of one utterance. */
   onFinal(text: string): void;
+  /**
+   * Optional: true when a partial is already a complete command and may be
+   * finalized after a short period without changes.
+   */
+  isCompletePartial?(text: string): boolean;
   /** Engine state; detail carries a progress label or an error message. */
   onState(state: VoiceEngineState, detail?: string): void;
   /** Optional live diagnostics for the match screen. */
