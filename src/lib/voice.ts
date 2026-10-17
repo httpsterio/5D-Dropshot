@@ -119,15 +119,15 @@ interface KeywordDef {
 /** Keyword -> default shot type ids from src/lib/defaults.ts. */
 const KEYWORDS: KeywordDef[] = [
   { variants: ['smash'], shotTypeId: 'winner-smash', keyword: 'smash', attribution: 'winner' },
-  { variants: ['drop'], shotTypeId: 'winner-drop', keyword: 'drop', attribution: 'winner' },
-  { variants: ['kill'], shotTypeId: 'winner-net', keyword: 'kill', attribution: 'winner' },
-  { variants: ['clear'], shotTypeId: 'winner-clear', keyword: 'clear', attribution: 'winner' },
-  { variants: ['drive'], shotTypeId: 'winner-drive', keyword: 'drive', attribution: 'winner' },
-  { variants: ['service'], shotTypeId: 'error-serve', keyword: 'service', attribution: 'error' },
-  { variants: ['net'], shotTypeId: 'error-net', keyword: 'net', attribution: 'error' },
-  { variants: ['out'], shotTypeId: 'error-out', keyword: 'out', attribution: 'error' },
+  { variants: ['drop', 'drop shot', 'dropshot'], shotTypeId: 'winner-drop', keyword: 'drop', attribution: 'winner' },
+  { variants: ['kill', 'net kill'], shotTypeId: 'winner-net', keyword: 'kill', attribution: 'winner' },
+  { variants: ['clear', 'clear winner'], shotTypeId: 'winner-clear', keyword: 'clear', attribution: 'winner' },
+  { variants: ['drive', 'drive winner'], shotTypeId: 'winner-drive', keyword: 'drive', attribution: 'winner' },
+  { variants: ['service', 'service fault', 'serve', 'fault'], shotTypeId: 'error-serve', keyword: 'service', attribution: 'error' },
+  { variants: ['net', 'hit the net', 'the net'], shotTypeId: 'error-net', keyword: 'net', attribution: 'error' },
+  { variants: ['out', 'out of bounds'], shotTypeId: 'error-out', keyword: 'out', attribution: 'error' },
   { variants: ['mishit', 'miss hit', 'mis hit'], shotTypeId: 'error-mishit', keyword: 'mishit', attribution: 'error' },
-  { variants: ['error'], shotTypeId: 'error-other', keyword: 'error', attribution: 'error' }
+  { variants: ['error', 'other error'], shotTypeId: 'error-other', keyword: 'error', attribution: 'error' }
 ];
 
 /* ------------------------------------------------------------------ */
@@ -239,20 +239,28 @@ function resolvePlayer(spokenWords: string[], leftName: string, rightName: strin
   return winners.length === 1 ? winners[0] : null;
 }
 
+/** Longest alias phrase that matches as consecutive whole words (leftmost on ties). */
 function findKeyword(tokens: string[]): { index: number; def: KeywordDef } | null {
+  let best: { index: number; def: KeywordDef; length: number } | null = null;
   for (let i = 0; i < tokens.length; i++) {
     for (const def of KEYWORDS) {
       for (const variant of def.variants) {
         const parts = variant.split(' ');
-        if (parts.length === 1) {
-          if (tokens[i] === variant) return { index: i, def };
-        } else if (tokens.slice(i, i + parts.length).join(' ') === variant) {
-          return { index: i, def };
+        if (i + parts.length > tokens.length) continue;
+        let matches = true;
+        for (let j = 0; j < parts.length; j++) {
+          if (tokens[i + j] !== parts[j]) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches && (!best || parts.length > best.length)) {
+          best = { index: i, def, length: parts.length };
         }
       }
     }
   }
-  return null;
+  return best ? { index: best.index, def: best.def } : null;
 }
 
 function pointCommand(slot: Slot, def: KeywordDef): VoicePointCommand {

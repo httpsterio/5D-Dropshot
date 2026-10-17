@@ -278,11 +278,15 @@
     window.clearTimeout(voiceStatusTimer);
     voiceStatus = 'Ready';
     playTone(TONE_HIGH);
+    restartArmTimer();
+  }
+
+  function restartArmTimer(): void {
     window.clearTimeout(voiceArmTimer);
     voiceArmTimer = window.setTimeout(() => {
       disarmVoice();
       playTone(TONE_LOW);
-      flashVoiceStatus('Again?');
+      voiceStatus = 'Listening';
     }, VOICE_ARM_TIMEOUT_MS);
   }
 
@@ -300,7 +304,14 @@
     const command = voiceArmed
       ? parseVoiceCompletion(transcript, leftName, rightName, armedSlot, wakeWord)
       : parseVoiceCommand(transcript, leftName, rightName, wakeWord);
-    if (!command) return;
+    if (!command) {
+      if (voiceArmed) {
+        // Did not complete a command: say so and re-arm for another 8 seconds.
+        speak('Again?');
+        restartArmTimer();
+      }
+      return;
+    }
 
     const heard = normalizeTranscript(transcript);
     const now = Date.now();

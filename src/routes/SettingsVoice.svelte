@@ -74,11 +74,42 @@
     {/if}
 
     <div class="card bg-base-200">
-      <div class="card-body p-3 space-y-1.5">
-        <p class="text-sm">Say "{wakeWord} &lt;player&gt; &lt;reason&gt;" to score, e.g. "{wakeWord} Sami smash".</p>
-        <p class="text-sm">Say "{wakeWord} undo" to remove the most recent score.</p>
-        <p class="text-sm">Say "{wakeWord} help" to hear every reason read out.</p>
-        <p class="text-sm">Say "{wakeWord}" or "{wakeWord} &lt;player&gt;", wait for the ready tone, then say the rest without the wake word.</p>
+      <div class="card-body p-4 space-y-4">
+        <p class="text-sm">Tap the mic on the match screen. Keep the screen on and the phone near the court.</p>
+
+        <div class="space-y-2">
+          <p class="text-sm">Start every command with "{wakeWord}".</p>
+          <ul class="text-sm list-disc pl-5 space-y-1">
+            <li>{wakeWord} left drive: point to the left player, drive winner</li>
+            <li>{wakeWord} right net: point to the right player, the left player hit the net</li>
+            <li>{wakeWord} undo: undo the last point</li>
+            <li>{wakeWord} help: hear the list of reasons</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="text-sm font-semibold">Players</h2>
+          <ul class="text-sm list-disc pl-5 space-y-1">
+            <li>left or player one</li>
+            <li>right or player two</li>
+            <li>Names work if the phone recognizes them.</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="text-sm font-semibold">Reasons</h2>
+          <ul class="text-sm list-disc pl-5 space-y-1">
+            <li>Winners: smash, drop, kill, clear, drive</li>
+            <li>Errors by the other player: service, net, out, mishit, error</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="text-sm font-semibold">Two steps</h2>
+          <p class="text-sm">Say "{wakeWord}" and wait for the high tone. Say the rest within 8 seconds. A low tone means it timed out.</p>
+        </div>
+
+        <p class="text-sm">The phone reads back each point. If it is wrong, say "{wakeWord} undo".</p>
       </div>
     </div>
   </div>
