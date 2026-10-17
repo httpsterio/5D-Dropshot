@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, onMount } from 'svelte';
   import {
     app,
     getPlayer,
@@ -17,6 +18,18 @@
   import Confirm from '../components/Confirm.svelte';
   import type { Slot } from '../lib/types';
   import { computeWinProb, h2hMatchWinRate, inferP } from '../lib/winProb';
+  import {
+    VOICE_LANG,
+    cancelSpeech,
+    getSpeechRecognitionCtor,
+    hasSpeechRecognition,
+    isSpeechMuted,
+    normalizeTranscript,
+    parseVoiceCommand,
+    speak,
+    type SpeechRecognitionEventLike,
+    type SpeechRecognitionLike
+  } from '../lib/voice';
 
   // Auto-create active match if none exists when entering this view
   $effect(() => {
@@ -126,10 +139,163 @@
   function fmtTime(ts: number) {
     return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
+
+  // ---------- Hands-free voice scoring ----------
+
+  const speechSupported = hasSpeechRecognition();
+  let voiceOn = $state(false);
+  let voiceError = $state('');
+  let voiceStatus = $state('Listening');
+  let voiceStatusTimer: number | undefined;
+  let voiceRestartTimer: number | undefined;
+  let recognition: SpeechRecognitionLike | null = null;
+  let recognitionRunning = false;
+  let lastHeard = '';
+  let lastHeardAt = 0;
+  let nosleep: { enable: () => void; disable: () => void } | null = null;
+
+  const voiceBlocked = $derived(
+    pickerSlot !== null ||
+      playerPickerSlot !== null ||
+      confirmEnd ||
+      confirmAbort ||
+      confirmUndo ||
+      showWinPrompt
+  );
+
+  onMount(async () => {
+    if (!speechSupported) return;
+    try {
+      const NoSleep = (await import('nosleep.js')).default;
+      nosleep = new NoSleep();
+      if (voiceOn) {
+        try { nosleep.enable(); } catch { /* ignore */ }
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+
+  onDestroy(() => {
+    stopVoice();
+  });
+
+  function flashVoiceStatus(text: string): void {
+    voiceStatus = text;
+    window.clearTimeout(voiceStatusTimer);
+    voiceStatusTimer = window.setTimeout(() => {
+      voiceStatus = 'Listening';
+    }, 3500);
+  }
+
+  function startVoice(): void {
+    if (!speechSupported || voiceOn) return;
+    voiceError = '';
+    voiceStatus = 'Listening';
+    voiceOn = true;
+    try { nosleep?.enable(); } catch { /* ignore */ }
+    startRecognition();
+  }
+
+  function stopVoice(error = ''): void {
+    voiceOn = false;
+    voiceError = error;
+    window.clearTimeout(voiceRestartTimer);
+    window.clearTimeout(voiceStatusTimer);
+    recognitionRunning = false;
+    try { recognition?.abort(); } catch { /* ignore */ }
+    try { nosleep?.disable(); } catch { /* ignore */ }
+    cancelSpeech();
+  }
+
+  function toggleVoice(): void {
+    if (voiceOn) stopVoice();
+    else startVoice();
+  }
+
+  function startRecognition(): void {
+    if (!voiceOn) return;
+    const Recognition = getSpeechRecognitionCtor();
+    if (!Recognition) return;
+    if (!recognition) {
+      const rec = new Recognition();
+      rec.lang = VOICE_LANG;
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onstart = () => { recognitionRunning = true; };
+      rec.onend = () => {
+        recognitionRunning = false;
+        if (!voiceOn) return;
+        // Chrome on Android ends the session after silence; restart it.
+        window.clearTimeout(voiceRestartTimer);
+        voiceRestartTimer = window.setTimeout(() => {
+          if (voiceOn) startRecognition();
+        }, 250);
+      };
+      rec.onresult = onVoiceResult;
+      rec.onerror = (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          stopVoice(`Voice error: ${event.error}`);
+        }
+      };
+      recognition = rec;
+    }
+    if (recognitionRunning) return;
+    try {
+      recognition.start();
+    } catch {
+      /* ignored: already started or not available */
+    }
+  }
+
+  function onVoiceResult(event: SpeechRecognitionEventLike): void {
+    if (!voiceOn || voiceBlocked || isSpeechMuted()) return;
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (!result.isFinal) continue;
+      handleVoiceTranscript(result[0]?.transcript ?? '');
+    }
+  }
+
+  function handleVoiceTranscript(transcript: string): void {
+    const m = app.activeMatch;
+    if (!m || !m.leftPlayerId || !m.rightPlayerId) return;
+    const leftName = getPlayer(m.leftPlayerId)?.name ?? '';
+    const rightName = getPlayer(m.rightPlayerId)?.name ?? '';
+    const command = parseVoiceCommand(transcript, leftName, rightName);
+    if (!command) return;
+
+    const heard = normalizeTranscript(transcript);
+    const now = Date.now();
+    if (heard === lastHeard && now - lastHeardAt < 3000) return;
+    lastHeard = heard;
+    lastHeardAt = now;
+
+    if (command.kind === 'undo') {
+      if (!undoPoint()) return;
+      const s = scoreOf(m);
+      speak(`Undone, ${leftName} ${s.left}, ${rightName} ${s.right}`);
+      flashVoiceStatus(heard);
+      return;
+    }
+
+    logPoint(command.slot, command.shotTypeId);
+    const s = scoreOf(m);
+    const scorerName = command.slot === 'left' ? leftName : rightName;
+    const opponentName = command.slot === 'left' ? rightName : leftName;
+    const scorerScore = command.slot === 'left' ? s.left : s.right;
+    const opponentScore = command.slot === 'left' ? s.right : s.left;
+    speak(
+      command.attribution === 'error'
+        ? `Point ${scorerName}, ${opponentName} ${command.keyword}, ${scorerScore} ${opponentScore}`
+        : `Point ${scorerName}, ${command.keyword}, ${scorerScore} ${opponentScore}`
+    );
+    flashVoiceStatus(heard);
+  }
 </script>
 
-<div class="flex flex-col h-full">
-
+<div class="flex flex-col h-full border-4 border-transparent" class:border-success={voiceOn}>
   {#if match}
     <!-- Top action bar: Abort / End -->
     <header class="safe-top bg-base-200 border-b border-base-300 grid grid-cols-2 divide-x divide-base-300">
@@ -179,6 +345,13 @@
         </div>
       {/if}
 
+      <!-- Voice status -->
+      {#if voiceOn || voiceError}
+        <div class="shrink-0 border-b border-base-300 px-3 py-1.5 text-xs truncate {voiceError ? 'text-error' : 'text-success'}">
+          {voiceError || voiceStatus}
+        </div>
+      {/if}
+
       <!-- Last points -->
       <div class="flex-1 overflow-y-auto px-3 py-2 min-h-0">
         <div class="flex items-center justify-between mb-2 px-1">
@@ -219,10 +392,22 @@
 
       <!-- Action row -->
       <div class="border-t border-base-300 px-3 pt-3 space-y-2" style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom))">
-        <button class="btn btn-ghost btn-sm w-full" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
-          Undo last point
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm flex-1" onclick={() => confirmUndo = true} disabled={match.points.length === 0}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+            Undo last point
+          </button>
+          {#if speechSupported}
+            <button
+              class="btn btn-sm {voiceOn ? 'btn-success' : 'btn-ghost'}"
+              aria-label={voiceOn ? 'Turn off voice scoring' : 'Turn on voice scoring'}
+              aria-pressed={voiceOn}
+              onclick={toggleVoice}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+          {/if}
+        </div>
         <div class="grid grid-cols-2 gap-2">
           <button class="btn btn-info h-16 text-base" onclick={() => openScore('left')}>+ {leftName}</button>
           <button class="btn btn-warning h-16 text-base" onclick={() => openScore('right')}>+ {rightName}</button>
