@@ -9,6 +9,18 @@ import {
 /** Audio-to-text engines for voice scoring. */
 export type VoiceEngineState = 'loading' | 'listening' | 'error';
 
+/** Live snapshot an engine can report for on-screen troubleshooting. */
+export interface EngineDiagnostics {
+  state: 'idle' | VoiceEngineState;
+  lastError: string;
+  getUserMedia: string;
+  audioContextState: string;
+  audioContextSampleRate: number;
+  inputLevel: number;
+  chunksFed: number;
+  partialText: string;
+}
+
 export interface VoiceEngineHandlers {
   /** Live partial text while the user speaks (may never fire for some engines). */
   onPartial(text: string): void;
@@ -16,6 +28,8 @@ export interface VoiceEngineHandlers {
   onFinal(text: string): void;
   /** Engine state; detail carries a progress label or an error message. */
   onState(state: VoiceEngineState, detail?: string): void;
+  /** Optional live diagnostics for the match screen. */
+  onDiagnostics?(diagnostics: EngineDiagnostics): void;
 }
 
 export interface VoiceEngine {

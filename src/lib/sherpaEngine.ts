@@ -1,5 +1,5 @@
 import { isSpeechMuted } from './voice';
-import type { VoiceEngine, VoiceEngineHandlers } from './voiceEngine';
+import type { EngineDiagnostics, VoiceEngine, VoiceEngineHandlers, VoiceEngineState } from './voiceEngine';
 
 /* ------------------------------------------------------------------ */
 /* sherpa-onnx WebAssembly (streaming zipformer, English, int8)        */
@@ -68,6 +68,35 @@ type ProgressFn = (loaded: number, total: number) => void;
 let recognizer: SherpaRecognizer | null = null;
 let loadPromise: Promise<void> | null = null;
 const progressListeners = new Set<ProgressFn>();
+
+/**
+ * The audio context must be created/resumed inside the mic button's tap
+ * handler; created later (after awaits) Android Chrome keeps it suspended
+ * and no audio callbacks ever fire.
+ */
+let primedAudioContext: AudioContext | null = null;
+
+export function primeSherpaAudioContext(): AudioContext | null {
+  try {
+    if (!primedAudioContext || primedAudioContext.state === 'closed') {
+      try {
+        primedAudioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+      } catch {
+        // Some devices reject a forced sample rate; the engine downsamples.
+        primedAudioContext = new AudioContext();
+      }
+    }
+    if (primedAudioContext.state === 'suspended') {
+      // Called synchronously from the tap handler, so this resume is allowed.
+      void primedAudioContext.resume().catch(() => {
+        /* state stays visible in the diagnostics block */
+      });
+    }
+    return primedAudioContext;
+  } catch {
+    return null;
+  }
+}
 
 export function isSherpaLoaded(): boolean {
   return recognizer !== null;
@@ -155,8 +184,17 @@ async function doLoad(): Promise<void> {
     locateFile: (path) => `/voice/${path}`
   };
   const runtimeReady = new Promise<void>((resolve, reject) => {
-    init.onRuntimeInitialized = () => resolve();
-    init.onAbort = () => reject(new Error('sherpa-onnx wasm failed to start'));
+    const timer = window.setTimeout(() => {
+      reject(new Error('Timed out while starting the wasm runtime'));
+    }, 120_000);
+    init.onRuntimeInitialized = () => {
+      window.clearTimeout(timer);
+      resolve();
+    };
+    init.onAbort = () => {
+      window.clearTimeout(timer);
+      reject(new Error('sherpa-onnx wasm failed to start'));
+    };
   });
   window.Module = init;
   await loadScript('/voice/sherpa-onnx-wasm-main-asr.js');
@@ -224,6 +262,7 @@ export function createSherpaEngine(): VoiceEngine {
  * One getUserMedia stream, 16 kHz samples, endpoint detection per utterance.
  * While speech or a tone plays (plus 1 s), audio feeding stops and the
  * recognizer stream is reset, so the readback can never be recognized.
+ * Every failure is reported through onState and the diagnostics snapshot.
  */
 class SherpaEngine implements VoiceEngine {
   private handlers: VoiceEngineHandlers | null = null;
@@ -235,30 +274,88 @@ class SherpaEngine implements VoiceEngine {
   private micStream: MediaStream | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
+  private diagState: 'idle' | VoiceEngineState = 'idle';
+  private diagError = '';
+  private diagGetUserMedia = 'not requested';
+  private inputLevel = 0;
+  private chunksFed = 0;
 
   start(handlers: VoiceEngineHandlers): void {
     this.handlers = handlers;
     this.running = true;
-    void this.startAsync();
+    void this.startAsync().catch((error) => {
+      this.fail(error);
+    });
   }
 
   stop(): void {
     this.running = false;
-    this.stopAudio();
-    this.stream?.free();
+    try {
+      this.stopAudio();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.stream?.free();
+    } catch {
+      /* ignore */
+    }
     this.stream = null;
     this.wasMuted = false;
     this.lastPartial = '';
+  }
+
+  private emitDiagnostics(): void {
+    const diagnostics: EngineDiagnostics = {
+      state: this.diagState,
+      lastError: this.diagError,
+      getUserMedia: this.diagGetUserMedia,
+      audioContextState: this.audioContext?.state ?? primedAudioContext?.state ?? 'none',
+      audioContextSampleRate: this.audioContext?.sampleRate ?? primedAudioContext?.sampleRate ?? 0,
+      inputLevel: this.inputLevel,
+      chunksFed: this.chunksFed,
+      partialText: this.lastPartial
+    };
+    this.handlers?.onDiagnostics?.(diagnostics);
+  }
+
+  /** Single place where engine failures land. */
+  private fail(error: unknown): void {
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    const alreadyFailed = this.diagState === 'error';
+    this.running = false;
+    this.diagState = 'error';
+    this.diagError = message;
+    try {
+      this.stopAudio();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.stream?.free();
+    } catch {
+      /* ignore */
+    }
+    this.stream = null;
+    this.emitDiagnostics();
+    if (!alreadyFailed) {
+      this.handlers?.onState('error', message);
+    }
   }
 
   private async startAsync(): Promise<void> {
     const handlers = this.handlers;
     if (!handlers) return;
     try {
+      this.diagState = 'loading';
+      this.diagError = '';
+      this.emitDiagnostics();
       handlers.onState('loading', 'Loading model… 0%');
       await loadSherpaModel((loaded, total) => {
         if (!this.running) return;
         const percent = total > 0 ? Math.floor((loaded / total) * 100) : 0;
+        this.diagState = 'loading';
+        this.emitDiagnostics();
         this.handlers?.onState('loading', `Loading model… ${percent}%`);
       });
       if (!this.running) return;
@@ -272,20 +369,42 @@ class SherpaEngine implements VoiceEngine {
       this.stream = rec.createStream();
       this.lastPartial = '';
       this.wasMuted = false;
+      this.diagState = 'listening';
+      this.emitDiagnostics();
       handlers.onState('listening');
     } catch (error) {
-      this.stopAudio();
-      const message = error instanceof Error ? error.message : String(error);
-      if (this.running) {
-        this.running = false;
-        handlers.onState('error', message);
-      }
+      this.fail(error);
     }
   }
 
   private async startAudio(rec: SherpaRecognizer): Promise<void> {
-    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    // Created/resumed in the tap handler when available; fall back for safety.
+    this.audioContext = primeSherpaAudioContext();
+    if (!this.audioContext) throw new Error('Could not create the audio context');
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (error) {
+        // Not fatal on its own: the diagnostics block shows the state.
+        this.diagError = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      }
+    }
+    if (this.audioContext.state !== 'running') {
+      this.diagError = `AudioContext is ${this.audioContext.state} after resume`;
+    }
+    // Report context state/sample rate before the first chunk arrives.
+    this.emitDiagnostics();
+
+    try {
+      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.diagGetUserMedia = 'granted';
+    } catch (error) {
+      this.diagGetUserMedia =
+        error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      this.emitDiagnostics();
+      throw error;
+    }
+
     this.source = this.audioContext.createMediaStreamSource(this.micStream);
     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
     this.processor.onaudioprocess = (event) => {
@@ -293,9 +412,7 @@ class SherpaEngine implements VoiceEngine {
     };
     this.source.connect(this.processor);
     this.processor.connect(this.audioContext.destination);
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
-    }
+    this.emitDiagnostics();
   }
 
   private stopAudio(): void {
@@ -311,17 +428,42 @@ class SherpaEngine implements VoiceEngine {
     }
     this.processor = null;
     this.source = null;
-    this.micStream?.getTracks().forEach((track) => track.stop());
+    this.micStream?.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        /* ignore */
+      }
+    });
     this.micStream = null;
-    if (this.audioContext) {
-      void this.audioContext.close().catch(() => {});
-      this.audioContext = null;
+    const contexts = new Set<AudioContext>();
+    if (this.audioContext) contexts.add(this.audioContext);
+    if (primedAudioContext) contexts.add(primedAudioContext);
+    for (const context of contexts) {
+      void context.close().catch(() => {});
     }
+    if (primedAudioContext && contexts.has(primedAudioContext)) primedAudioContext = null;
+    this.audioContext = null;
   }
 
   private onAudio(event: AudioProcessingEvent, rec: SherpaRecognizer): void {
+    try {
+      this.processChunk(event, rec);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+
+  private processChunk(event: AudioProcessingEvent, rec: SherpaRecognizer): void {
     const stream = this.stream;
     if (!this.running || !stream) return;
+
+    const raw = event.inputBuffer.getChannelData(0);
+
+    // RMS input level for the diagnostics meter.
+    let sum = 0;
+    for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
+    this.inputLevel = raw.length > 0 ? Math.sqrt(sum / raw.length) : 0;
 
     if (isSpeechMuted()) {
       // Speech or a tone is playing: do not feed, drop any partial text.
@@ -330,11 +472,12 @@ class SherpaEngine implements VoiceEngine {
         this.handlers?.onPartial('');
       }
       this.wasMuted = true;
+      this.emitDiagnostics();
       return;
     }
 
     const rate = this.audioContext?.sampleRate ?? SAMPLE_RATE;
-    let samples: Float32Array = new Float32Array(event.inputBuffer.getChannelData(0));
+    let samples: Float32Array = new Float32Array(raw);
     if (rate !== SAMPLE_RATE) samples = downsampleTo16k(samples, rate);
 
     if (this.wasMuted) {
@@ -345,6 +488,8 @@ class SherpaEngine implements VoiceEngine {
     }
 
     stream.acceptWaveform(SAMPLE_RATE, samples);
+    this.chunksFed += 1;
+
     while (rec.isReady(stream)) rec.decode(stream);
 
     const text = rec.getResult(stream).text;
@@ -359,6 +504,8 @@ class SherpaEngine implements VoiceEngine {
       this.lastPartial = '';
       this.handlers?.onPartial('');
     }
+
+    this.emitDiagnostics();
   }
 }
 

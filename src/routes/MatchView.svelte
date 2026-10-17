@@ -32,8 +32,8 @@
     playTone,
     speak
   } from '../lib/voice';
-  import { createChromeEngine, hasChromeEngine, type VoiceEngine, type VoiceEngineState } from '../lib/voiceEngine';
-  import { createSherpaEngine } from '../lib/sherpaEngine';
+  import { createChromeEngine, hasChromeEngine, type EngineDiagnostics, type VoiceEngine, type VoiceEngineState } from '../lib/voiceEngine';
+  import { createSherpaEngine, primeSherpaAudioContext } from '../lib/sherpaEngine';
 
   // Auto-create active match if none exists when entering this view
   $effect(() => {
@@ -157,6 +157,7 @@
   let voiceStatus = $state('Listening');
   let voiceStatusTimer: number | undefined;
   let engine: VoiceEngine | null = null;
+  let diagnostics = $state<EngineDiagnostics | null>(null);
   let lastHeard = '';
   let lastHeardAt = 0;
   let voiceArmed = false;
@@ -200,6 +201,11 @@
 
   function startVoice(): void {
     if (!speechSupported || voiceOn) return;
+    if (engineChoice === 'offline') {
+      // Must happen inside the tap handler, before any await: Android Chrome
+      // keeps a later-created AudioContext suspended and never runs audio.
+      primeSherpaAudioContext();
+    }
     voiceError = '';
     voiceStatus = 'Listening';
     voiceOn = true;
@@ -215,6 +221,8 @@
     disarmVoice();
     engine?.stop();
     engine = null;
+    // Keep the diagnostics block visible after a failure.
+    if (!error) diagnostics = null;
     try { nosleep?.disable(); } catch { /* ignore */ }
     cancelSpeech();
   }
@@ -226,13 +234,29 @@
 
   function startRecognition(): void {
     if (!voiceOn) return;
+    diagnostics =
+      engineChoice === 'offline'
+        ? {
+            state: 'loading',
+            lastError: '',
+            getUserMedia: 'not requested',
+            audioContextState: 'none',
+            audioContextSampleRate: 0,
+            inputLevel: 0,
+            chunksFed: 0,
+            partialText: ''
+          }
+        : null;
     engine = engineChoice === 'offline' ? createSherpaEngine() : createChromeEngine();
     engine.start({
       onPartial: () => {
         // Partials exist for the offline engine; the match screen shows finals only.
       },
       onFinal: (text) => handleEngineFinal(text),
-      onState: (state, detail) => handleEngineState(state, detail)
+      onState: (state, detail) => handleEngineState(state, detail),
+      onDiagnostics: (next) => {
+        diagnostics = next;
+      }
     });
   }
 
@@ -391,6 +415,26 @@
       {#if voiceOn || voiceError}
         <div class="shrink-0 border-b border-base-300 px-3 py-1.5 text-xs truncate {voiceError ? 'text-error' : 'text-success'}">
           {voiceError || voiceStatus}
+        </div>
+      {/if}
+
+      <!-- Offline engine diagnostics -->
+      {#if engineChoice === 'offline' && diagnostics && (voiceOn || diagnostics.state === 'error')}
+        <div class="shrink-0 border-b border-base-300 px-3 py-1.5 font-mono text-[10px] leading-tight text-base-content/60 space-y-0.5">
+          <div>
+            state: <span class={diagnostics.state === 'error' ? 'text-error' : diagnostics.state === 'listening' ? 'text-success' : ''}>{diagnostics.state}</span>{diagnostics.lastError ? ` — ${diagnostics.lastError}` : ''}
+          </div>
+          <div>mic: {diagnostics.getUserMedia}</div>
+          <div>audio: {diagnostics.audioContextState} @ {diagnostics.audioContextSampleRate} Hz</div>
+          <div class="flex items-center gap-2">
+            <span>level:</span>
+            <div class="h-1.5 w-24 rounded bg-base-300 overflow-hidden">
+              <div class="h-full bg-success" style="width: {Math.min(100, Math.round(diagnostics.inputLevel * 400))}%"></div>
+            </div>
+            <span>{diagnostics.inputLevel.toFixed(3)}</span>
+          </div>
+          <div>chunks: {diagnostics.chunksFed}</div>
+          <div class="truncate">partial: {diagnostics.partialText}</div>
         </div>
       {/if}
 
