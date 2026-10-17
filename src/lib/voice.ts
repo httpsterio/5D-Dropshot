@@ -105,7 +105,7 @@ export function normalizeTranscript(text: string): string {
 }
 
 const LEFT_WORDS = ['left'];
-const RIGHT_WORDS = ['right'];
+const RIGHT_WORDS = ['right', 'write', 'wright', 'rite'];
 const LEFT_PHRASES = ['player one', 'player 1', 'player won'];
 const RIGHT_PHRASES = ['player two', 'player 2', 'player to', 'player too'];
 
@@ -118,15 +118,15 @@ interface KeywordDef {
 
 /** Keyword -> default shot type ids from src/lib/defaults.ts. */
 const KEYWORDS: KeywordDef[] = [
-  { variants: ['smash'], shotTypeId: 'winner-smash', keyword: 'smash', attribution: 'winner' },
-  { variants: ['drop', 'drop shot', 'dropshot'], shotTypeId: 'winner-drop', keyword: 'drop', attribution: 'winner' },
-  { variants: ['kill', 'net kill'], shotTypeId: 'winner-net', keyword: 'kill', attribution: 'winner' },
-  { variants: ['clear', 'clear winner'], shotTypeId: 'winner-clear', keyword: 'clear', attribution: 'winner' },
-  { variants: ['drive', 'drive winner'], shotTypeId: 'winner-drive', keyword: 'drive', attribution: 'winner' },
-  { variants: ['service', 'service fault', 'serve', 'fault'], shotTypeId: 'error-serve', keyword: 'service', attribution: 'error' },
-  { variants: ['net', 'hit the net', 'the net'], shotTypeId: 'error-net', keyword: 'net', attribution: 'error' },
-  { variants: ['out', 'out of bounds'], shotTypeId: 'error-out', keyword: 'out', attribution: 'error' },
-  { variants: ['mishit', 'miss hit', 'mis hit'], shotTypeId: 'error-mishit', keyword: 'mishit', attribution: 'error' },
+  { variants: ['smash', 'smashed', 'smash shot'], shotTypeId: 'winner-smash', keyword: 'smash', attribution: 'winner' },
+  { variants: ['drop', 'drop shot', 'dropshot', 'drop shop'], shotTypeId: 'winner-drop', keyword: 'drop', attribution: 'winner' },
+  { variants: ['kill', 'net kill', 'ned kill', 'netkill'], shotTypeId: 'winner-net', keyword: 'kill', attribution: 'winner' },
+  { variants: ['clear', 'clear winner', 'clear shot'], shotTypeId: 'winner-clear', keyword: 'clear', attribution: 'winner' },
+  { variants: ['drive', 'drive winner', 'drive shot'], shotTypeId: 'winner-drive', keyword: 'drive', attribution: 'winner' },
+  { variants: ['service', 'service fault', 'service error', 'serve', 'serve fault', 'fault'], shotTypeId: 'error-serve', keyword: 'service', attribution: 'error' },
+  { variants: ['net', 'hit the net', 'the net', 'into the net'], shotTypeId: 'error-net', keyword: 'net', attribution: 'error' },
+  { variants: ['out', 'out of bounds', 'outside'], shotTypeId: 'error-out', keyword: 'out', attribution: 'error' },
+  { variants: ['mishit', 'miss hit', 'mis hit', 'missed hit', 'miss it'], shotTypeId: 'error-mishit', keyword: 'mishit', attribution: 'error' },
   { variants: ['error', 'other error'], shotTypeId: 'error-other', keyword: 'error', attribution: 'error' }
 ];
 
@@ -138,10 +138,11 @@ const KEYWORDS: KeywordDef[] = [
 export const WAKE_WORD_PRESETS = ['point', 'plus', 'shuttle', 'okay'];
 
 const RESERVED_WAKE_WORDS = [
-  'left', 'right', 'player', 'one', 'two', 'won', 'to', 'too', 'undo', 'help',
+  'left', 'right', 'write', 'wright', 'rite', 'player', 'one', 'two', 'won', 'to', 'too', 'undo', 'help',
   'smash', 'drop', 'dropshot', 'kill', 'clear', 'drive',
   'service', 'serve', 'fault', 'net', 'out',
-  'mishit', 'miss', 'mis', 'hit', 'error', 'other', 'winner', 'shot', 'bounds'
+  'mishit', 'miss', 'mis', 'hit', 'error', 'other', 'winner', 'shot', 'bounds',
+  'smashed', 'shop', 'netkill', 'ned', 'outside', 'missed', 'into'
 ];
 
 export type WakeWordCheck = { ok: true; value: string } | { ok: false; reason: string };

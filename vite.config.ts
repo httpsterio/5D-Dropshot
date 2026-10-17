@@ -28,7 +28,12 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}']
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        runtimeCaching: [{
+          urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/voice/'),
+          handler: 'CacheFirst',
+          options: { cacheName: 'dropshot-sherpa-v1' }
+        }]
       }
     })
   ],

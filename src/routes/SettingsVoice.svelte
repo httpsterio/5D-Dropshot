@@ -3,7 +3,7 @@
   import { app, setConfig } from '../stores/app.svelte';
   import AppBar from '../components/AppBar.svelte';
   import { WAKE_WORD_PRESETS, validateWakeWord } from '../lib/voice';
-  import { SHERPA_DOWNLOAD_MB, isSherpaLoaded, loadSherpaModel } from '../lib/sherpaEngine';
+  import { SHERPA_DOWNLOAD_MB, downloadSherpaAssets, isSherpaCached } from '../lib/sherpaEngine';
 
   const CUSTOM = 'custom';
 
@@ -11,13 +11,12 @@
   let engineBusy = $state(false);
   let engineProgress = $state(0);
   let engineError = $state('');
-  let engineReady = $state(isSherpaLoaded());
+  let engineReady = $state(false);
 
   onMount(() => {
-    if (app.config.voiceEngine === 'offline' && !isSherpaLoaded()) {
-      engineMode = 'offline';
-      void ensureOffline('offline');
-    }
+    void isSherpaCached().then((cached) => {
+      if (!engineBusy) engineReady = cached;
+    }).catch(() => {});
   });
 
   function selectEngine(value: string): void {
@@ -27,7 +26,7 @@
       setConfig({ voiceEngine: 'chrome' });
       return;
     }
-    if (isSherpaLoaded()) {
+    if (engineReady) {
       engineReady = true;
       engineMode = 'offline';
       setConfig({ voiceEngine: 'offline' });
@@ -43,7 +42,7 @@
     engineProgress = 0;
     engineError = '';
     try {
-      await loadSherpaModel((loaded, total) => {
+      await downloadSherpaAssets((loaded, total) => {
         engineProgress = total > 0 ? Math.floor((loaded / total) * 100) : 0;
       });
       engineReady = true;
@@ -53,7 +52,7 @@
     } catch (error) {
       // Keep the previous engine and show why loading failed.
       engineError = error instanceof Error ? error.message : String(error);
-      engineMode = revertTo;
+      if (engineMode === 'offline') engineMode = revertTo;
     } finally {
       engineBusy = false;
     }
@@ -104,14 +103,16 @@
       <span class="text-sm text-base-content/60">Speech engine</span>
       <select class="select select-bordered w-full mt-1" value={engineMode} onchange={(e) => selectEngine(e.currentTarget.value)}>
         <option value="chrome">Chrome (needs internet)</option>
-        <option value="offline">Offline (downloads about {SHERPA_DOWNLOAD_MB} MB once)</option>
+        <option value="offline">Offline (stores about {SHERPA_DOWNLOAD_MB} MB on this device)</option>
       </select>
       {#if engineBusy}
         <span class="text-xs text-base-content/50 block mt-1">Loading… {engineProgress}%</span>
       {:else if engineError}
         <span class="text-xs text-error block mt-1">{engineError}</span>
       {:else if engineMode === 'offline' && engineReady}
-        <span class="text-xs text-success block mt-1">Ready</span>
+        <span class="text-xs text-success block mt-1">Downloaded · model starts when you use the mic</span>
+      {:else if engineMode === 'offline'}
+        <button class="btn btn-sm btn-outline mt-2" onclick={() => ensureOffline('offline')}>Download offline files</button>
       {/if}
     </label>
 

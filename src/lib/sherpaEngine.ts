@@ -17,7 +17,18 @@ const MODEL_FILES = [
   { name: 'tokens.txt', bytes: 5_048 }
 ];
 
-const RUNTIME_BYTES = 53_867 + 82_688 + 13_150_239; // wrapper js + glue js + wasm
+const RUNTIME_FILES = [
+  { name: 'sherpa-onnx-asr.js', bytes: 53_867 },
+  { name: 'sherpa-onnx-wasm-main-asr.js', bytes: 82_688 },
+  { name: 'sherpa-onnx-wasm-main-asr.wasm', bytes: 13_150_239 }
+];
+// Bump this when replacing the bundled model or runtime files.
+export const SHERPA_CACHE_NAME = 'dropshot-sherpa-v1';
+const ASSETS = [
+  ...RUNTIME_FILES.map((file) => ({ ...file, url: `/voice/${file.name}` })),
+  ...MODEL_FILES.map((file) => ({ ...file, url: `/voice/model/${file.name}` }))
+];
+const RUNTIME_BYTES = RUNTIME_FILES.reduce((sum, file) => sum + file.bytes, 0);
 
 /** Total download for the offline engine, in whole decimal megabytes. */
 export const SHERPA_DOWNLOAD_MB = Math.round(
@@ -69,6 +80,7 @@ type ProgressFn = (loaded: number, total: number) => void;
 
 let recognizer: SherpaRecognizer | null = null;
 let loadPromise: Promise<void> | null = null;
+let downloadPromise: Promise<void> | null = null;
 const progressListeners = new Set<ProgressFn>();
 
 /**
@@ -102,6 +114,53 @@ export function primeSherpaAudioContext(): AudioContext | null {
 
 export function isSherpaLoaded(): boolean {
   return recognizer !== null;
+}
+
+/** A cached response must be complete; a partially written model is not usable offline. */
+async function cachedAsset(cache: Cache, url: string, bytes: number): Promise<Response | undefined> {
+  const response = await cache.match(url);
+  if (!response) return undefined;
+  const length = Number(response.headers.get('content-length'));
+  if (response.ok && length === bytes) return response;
+  await cache.delete(url);
+  return undefined;
+}
+
+export async function isSherpaCached(): Promise<boolean> {
+  if (typeof caches === 'undefined') return false;
+  const cache = await caches.open(SHERPA_CACHE_NAME);
+  for (const asset of ASSETS) {
+    if (!(await cachedAsset(cache, asset.url, asset.bytes))) return false;
+  }
+  return true;
+}
+
+/** Download all offline assets without starting the recognizer or requesting the mic. */
+export function downloadSherpaAssets(onProgress?: ProgressFn): Promise<void> {
+  if (!downloadPromise) {
+    downloadPromise = doDownload().finally(() => { downloadPromise = null; });
+  }
+  if (onProgress) {
+    progressListeners.add(onProgress);
+    void downloadPromise.finally(() => progressListeners.delete(onProgress)).catch(() => {});
+  }
+  return downloadPromise;
+}
+
+async function doDownload(): Promise<void> {
+  if (typeof caches === 'undefined') throw new Error('Offline storage is not available in this browser');
+  const cache = await caches.open(SHERPA_CACHE_NAME);
+  const total = ASSETS.reduce((sum, file) => sum + file.bytes, 0);
+  let loaded = 0;
+  for (const asset of ASSETS) {
+    if (!(await cachedAsset(cache, asset.url, asset.bytes))) {
+      await fetchWithProgress(asset.url, asset.bytes, (bytes) => {
+        reportProgress(loaded + bytes, total);
+      }, cache);
+    }
+    loaded += asset.bytes;
+    reportProgress(loaded, total);
+  }
 }
 
 /** Loads the wasm runtime and the model once; later calls reuse the same promise. */
@@ -146,14 +205,17 @@ function loadScript(src: string): Promise<void> {
 async function fetchWithProgress(
   url: string,
   expectedBytes: number,
-  onLoaded: (bytes: number) => void
+  onLoaded: (bytes: number) => void,
+  cache?: Cache
 ): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to download ${url} (${response.status})`);
   const reader = response.body?.getReader();
   if (!reader) {
     const buffer = new Uint8Array(await response.arrayBuffer());
+    if (buffer.byteLength !== expectedBytes) throw new Error(`Incomplete download: ${url}`);
     onLoaded(buffer.byteLength);
+    if (cache) await cache.put(url, new Response(buffer, { headers: { 'content-length': String(expectedBytes) } }));
     return buffer;
   }
   const chunks: Uint8Array[] = [];
@@ -164,16 +226,18 @@ async function fetchWithProgress(
     if (value) {
       chunks.push(value);
       received += value.length;
-      onLoaded(value.length);
+      onLoaded(received);
     }
   }
-  const result = new Uint8Array(received || expectedBytes);
+  if (received !== expectedBytes) throw new Error(`Incomplete download: ${url}`);
+  const result = new Uint8Array(received);
   let offset = 0;
   for (const chunk of chunks) {
     result.set(chunk, offset);
     offset += chunk.length;
   }
-  return offset === result.byteLength ? result : result.subarray(0, offset);
+  if (cache) await cache.put(url, new Response(result, { headers: { 'content-length': String(expectedBytes) } }));
+  return result;
 }
 
 async function doLoad(): Promise<void> {
@@ -205,15 +269,20 @@ async function doLoad(): Promise<void> {
   // The runtime attached the FS helpers to the same object.
   const mod = init as SherpaModule;
 
-  // Download the model into the wasm file system.
+  // Copy the persistent model into the wasm file system (which is memory-only).
   mod.FS_createPath('/', 'voice', true, true);
   mod.FS_createPath('/voice', 'model', true, true);
   const total = MODEL_FILES.reduce((sum, file) => sum + file.bytes, 0);
   let loaded = 0;
+  const cache = typeof caches === 'undefined' ? null : await caches.open(SHERPA_CACHE_NAME);
   for (const file of MODEL_FILES) {
-    const data = await fetchWithProgress(`/voice/model/${file.name}`, file.bytes, (bytes) => {
-      reportProgress(loaded + bytes, total);
-    });
+    const url = `/voice/model/${file.name}`;
+    const cached = cache && await cachedAsset(cache, url, file.bytes);
+    const data = cached
+      ? new Uint8Array(await cached.arrayBuffer())
+      : await fetchWithProgress(url, file.bytes, (bytes) => {
+          reportProgress(loaded + bytes, total);
+        }, cache ?? undefined);
     mod.FS_createDataFile('/voice/model', file.name, data, true, true, true);
     loaded += file.bytes;
     reportProgress(loaded, total);
@@ -374,7 +443,7 @@ class SherpaEngine implements VoiceEngine {
       this.diagState = 'loading';
       this.diagError = '';
       this.emitDiagnostics();
-      handlers.onState('loading', 'Loading model… 0%');
+      handlers.onState('loading', 'Starting offline recognizer…');
       await loadSherpaModel((loaded, total) => {
         if (!this.running) return;
         const percent = total > 0 ? Math.floor((loaded / total) * 100) : 0;
