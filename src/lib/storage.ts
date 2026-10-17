@@ -20,6 +20,10 @@ export function load(): AppData {
     if (parsed.config?.voiceEngine !== 'chrome' && parsed.config?.voiceEngine !== 'offline') {
       parsed.config = { ...parsed.config, voiceEngine: DEFAULT_CONFIG.voiceEngine };
     }
+    // Saves from before the haptics setting exist: backfill only this field.
+    if (typeof parsed.config?.haptics !== 'boolean') {
+      parsed.config = { ...parsed.config, haptics: DEFAULT_CONFIG.haptics };
+    }
     return parsed;
   } catch {
     return emptyAppData();

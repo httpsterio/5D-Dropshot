@@ -1,6 +1,6 @@
 <script lang="ts">
   import { go } from '../stores/router.svelte';
-  import { app } from '../stores/app.svelte';
+  import { app, setConfig } from '../stores/app.svelte';
   import AppBar from '../components/AppBar.svelte';
 
   const playerCount = $derived(app.players.filter(p => p.deletedAt === null).length);
@@ -55,6 +55,21 @@
           </div>
           <span class="text-base-content/40">›</span>
         </button>
+      </li>
+      <li>
+        <label class="w-full px-4 py-4 flex justify-between items-center active:bg-base-200 cursor-pointer">
+          <div>
+            <div class="font-medium">Haptics</div>
+            <div class="text-xs text-base-content/60">Vibrate on button presses: {app.config.haptics ? 'On' : 'Off'}</div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-primary"
+            aria-label="Haptics"
+            checked={app.config.haptics}
+            onchange={(e) => setConfig({ haptics: e.currentTarget.checked })}
+          />
+        </label>
       </li>
       <li>
         <button class="w-full text-left px-4 py-4 active:bg-base-200 flex justify-between items-center" onclick={() => go({ name: 'settingsData' })}>

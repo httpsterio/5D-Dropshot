@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { current, tabOf } from './stores/router.svelte';
+  import { current, tabOf, setupHistory } from './stores/router.svelte';
   import { app } from './stores/app.svelte';
+  import { vibrate } from './lib/haptics';
   import BottomNav from './components/BottomNav.svelte';
   import HomeView from './routes/HomeView.svelte';
   import MatchView from './routes/MatchView.svelte';
@@ -22,6 +23,23 @@
   const showNav = $derived(tab !== 'match' || !app.activeMatch);
 
   let nosleep: { enable: () => void; disable: () => void } | null = null;
+
+  onMount(() => setupHistory());
+
+  onMount(() => {
+    // Single delegated listener: one short vibration per control press.
+    function handleControlClick(e: MouseEvent) {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const control = target.closest('button, [role="button"], a[href]');
+      if (!control) return;
+      if (control instanceof HTMLButtonElement && control.disabled) return;
+      if (control.getAttribute('aria-disabled') === 'true') return;
+      vibrate();
+    }
+    document.addEventListener('click', handleControlClick, { passive: true });
+    return () => document.removeEventListener('click', handleControlClick);
+  });
 
   onMount(async () => {
     const NoSleep = (await import('nosleep.js')).default;

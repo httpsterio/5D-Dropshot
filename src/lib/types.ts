@@ -54,6 +54,7 @@ export interface MatchConfig {
   theme: string;
   wakeWord: string;
   voiceEngine: 'chrome' | 'offline';
+  haptics: boolean;
 }
 
 export interface AppData {

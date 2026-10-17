@@ -65,7 +65,8 @@ function isConfig(v: unknown): v is MatchConfig {
   return isObject(v) 
     && isNumber(v.winThreshold) 
     && isNumber(v.winByMargin)
-    && (v.theme === undefined || isString(v.theme)); // Optional for backward compatibility on import
+    && (v.theme === undefined || isString(v.theme)) // Optional for backward compatibility on import
+    && (v.haptics === undefined || isBoolean(v.haptics)); // Optional for backward compatibility on import
 }
 
 export function validateExportFile(raw: unknown): Result<ExportFile> {

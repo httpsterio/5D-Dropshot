@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { registerOverlay } from '../stores/router.svelte';
 
   interface Props {
     open: boolean;
@@ -12,6 +13,12 @@
   }
 
   let { open, title, onClose, children, actions }: Props = $props();
+
+  // While open, back presses close this modal first (see router.svelte.ts).
+  $effect(() => {
+    if (!open) return;
+    return registerOverlay(() => onClose?.());
+  });
 
   function handleBackdrop(e: MouseEvent) {
     if (e.target === e.currentTarget && onClose) onClose();

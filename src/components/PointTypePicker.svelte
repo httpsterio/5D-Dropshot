@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from '../stores/app.svelte';
+  import { registerOverlay } from '../stores/router.svelte';
   import type { Slot, ShotType } from '../lib/types';
 
   interface Props {
@@ -12,6 +13,12 @@
   }
 
   let { open, slot, leftName, rightName, onPick, onCancel }: Props = $props();
+
+  // While open, back presses cancel the picker first (see router.svelte.ts).
+  $effect(() => {
+    if (!open) return;
+    return registerOverlay(onCancel);
+  });
 
   const winners = $derived(app.shotTypes.filter((s) => s.attribution === 'winner'));
   const errors = $derived(app.shotTypes.filter((s) => s.attribution === 'error'));

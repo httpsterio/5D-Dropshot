@@ -20,7 +20,8 @@ export const DEFAULT_CONFIG: MatchConfig = {
   winByMargin: 2,
   theme: 'sunset',
   wakeWord: 'point',
-  voiceEngine: 'chrome'
+  voiceEngine: 'chrome',
+  haptics: true
 };
 
 export function emptyAppData(): AppData {
