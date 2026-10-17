@@ -26,6 +26,19 @@ export function save(data: AppData): void {
   }
 }
 
+/** True when the saved snapshot already contains this active match (so a reload restores it). */
+export function activeMatchPersisted(id: string, pointCount: number): boolean {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { activeMatch?: { id?: string; points?: unknown[] } | null };
+    const saved = parsed.activeMatch;
+    return !!saved && saved.id === id && Array.isArray(saved.points) && saved.points.length === pointCount;
+  } catch {
+    return false;
+  }
+}
+
 function migrate(data: any): AppData {
   const empty = emptyAppData();
   const result: AppData = {
