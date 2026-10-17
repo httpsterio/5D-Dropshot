@@ -49,6 +49,7 @@ export function statsFor(playerId: ID, matches: FinishedMatch[], shotTypes: Shot
     stats.pointsConceded += oppScore;
 
     for (const point of m.points) {
+      if (point.shotTypeId === null) continue; // reason never recorded
       const shot = shotMap.get(point.shotTypeId);
       if (!shot) continue;
       const pointWentToLeft = point.scorerSlot === 'left';

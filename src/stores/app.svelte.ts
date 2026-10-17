@@ -38,7 +38,8 @@ export function getPlayer(id: string | null): Player | undefined {
   return app.players.find((p) => p.id === id);
 }
 
-export function getShotType(id: string): ShotType | undefined {
+export function getShotType(id: string | null): ShotType | undefined {
+  if (!id) return undefined;
   return app.shotTypes.find((s) => s.id === id);
 }
 

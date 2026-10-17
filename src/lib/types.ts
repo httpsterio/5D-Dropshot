@@ -20,7 +20,8 @@ export type Slot = 'left' | 'right';
 
 export interface Point {
   scorerSlot: Slot;
-  shotTypeId: ID;
+  /** `null` means the reason was never recorded (hand-repaired imports). */
+  shotTypeId: ID | null;
   timestamp: number;
 }
 

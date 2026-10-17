@@ -511,7 +511,7 @@
                 <span class="text-[11px] text-base-content/50 tabular shrink-0 w-7 {isLeft ? '' : 'order-3 text-right'}">#{entry.pointNumber}</span>
                 <div class="flex items-center gap-2 min-w-0 flex-1 {isLeft ? '' : 'justify-end text-right order-2'}">
                   <span class="font-semibold truncate {isLeft ? 'text-info' : 'text-warning'} {isLeft ? '' : 'order-2'}">{scoredName}</span>
-                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{isError ? `${oppName} ` : ''}{st?.label ?? '—'}</span>
+                  <span class="{shotColor} truncate {isLeft ? '' : 'order-1'}">{isError ? `${oppName} ` : ''}{st?.label ?? 'No reason'}</span>
                 </div>
                 <span class="text-[10px] text-base-content/40 tabular shrink-0 {isLeft ? 'order-3' : 'order-1'}">{fmtTime(p.timestamp)}</span>
               </li>

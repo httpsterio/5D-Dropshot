@@ -33,11 +33,17 @@ function isPlayer(v: unknown): v is Player {
     && (v.deletedAt === null || isNumber(v.deletedAt));
 }
 
-function isPoint(v: unknown): v is Point {
+/** Point fields other than the reason, so structural problems keep the generic match-list message. */
+function isPointShape(v: unknown): boolean {
   return isObject(v)
     && (v.scorerSlot === 'left' || v.scorerSlot === 'right')
-    && isString(v.shotTypeId)
     && isNumber(v.timestamp);
+}
+
+function isPoint(v: unknown): v is Point {
+  return isPointShape(v)
+    && isObject(v)
+    && (v.shotTypeId === null || isString(v.shotTypeId)); // null = reason never recorded
 }
 
 function isMatch(v: unknown): v is FinishedMatch {
@@ -47,7 +53,7 @@ function isMatch(v: unknown): v is FinishedMatch {
     && isNumber(v.endedAt)
     && isString(v.leftPlayerId)
     && isString(v.rightPlayerId)
-    && Array.isArray(v.points) && v.points.every(isPoint)
+    && Array.isArray(v.points) && v.points.every(isPointShape)
     && isNumber(v.leftScore)
     && isNumber(v.rightScore)
     && (v.winnerId === null || isString(v.winnerId))
@@ -74,8 +80,14 @@ export function validateExportFile(raw: unknown): Result<ExportFile> {
     return { ok: false, error: 'Invalid players list' };
   if (!Array.isArray(data.shotTypes) || !data.shotTypes.every(isShotType))
     return { ok: false, error: 'Invalid shot types list' };
-  if (!Array.isArray(data.matches) || !data.matches.every(isMatch))
+  if (!Array.isArray(data.matches))
     return { ok: false, error: 'Invalid matches list' };
+  for (const m of data.matches) {
+    if (!isMatch(m)) return { ok: false, error: 'Invalid matches list' };
+    const badIndex = m.points.findIndex((p) => !isPoint(p));
+    if (badIndex !== -1)
+      return { ok: false, error: `Invalid reason on match ${m.id} point ${badIndex + 1}` };
+  }
   if (!isConfig(data.config)) return { ok: false, error: 'Invalid config' };
 
   return { ok: true, value: raw as unknown as ExportFile };

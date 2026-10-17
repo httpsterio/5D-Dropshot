@@ -71,7 +71,7 @@
               <li class="bg-base-200 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                 <span class="text-[11px] text-base-content/50 tabular w-6 shrink-0">{idx + 1}.</span>
                 <span class="w-[32%] shrink-0 font-medium truncate {p.scorerSlot === 'left' ? 'text-info' : 'text-warning'}">{scoredName}</span>
-                <span class="{shotColor} truncate min-w-0">{isError ? `${oppName} ` : ''}{st?.label ?? '—'}</span>
+                <span class="{shotColor} truncate min-w-0">{isError ? `${oppName} ` : ''}{st?.label ?? 'No reason'}</span>
               </li>
             {/each}
           </ol>
