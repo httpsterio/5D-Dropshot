@@ -31,7 +31,7 @@
     function handleControlClick(e: MouseEvent) {
       const target = e.target;
       if (!(target instanceof Element)) return;
-      const control = target.closest('button, [role="button"], a[href]');
+      const control = target.closest('button, [role="button"], a[href], label, input[type="checkbox"]');
       if (!control) return;
       if (control instanceof HTMLButtonElement && control.disabled) return;
       if (control.getAttribute('aria-disabled') === 'true') return;
