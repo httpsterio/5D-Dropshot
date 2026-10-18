@@ -203,6 +203,7 @@ export function abortMatch(): void {
 export function deleteMatch(id: string): void {
   app.matches = app.matches.filter((m) => m.id !== id);
   app.historyVersion++;
+  rebuildEloFromHistory(app.players, app.matches);
 }
 
 export function replaceAll(data: Pick<AppData, 'players' | 'shotTypes' | 'matches' | 'config'>): void {

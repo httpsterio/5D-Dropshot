@@ -116,14 +116,14 @@ function handlePopState(e: PopStateEvent): void {
     selfBacks--;
     return;
   }
-  // User back press: overlays first, then one route step, then hold on Home.
+  // User back press: overlays first, then one route step, then exit on Home.
   if (closeTopOverlay()) return;
   if (backIn(router)) {
     syncHistory();
     return;
   }
-  // At Home with nothing open: re-push the sentinel instead of exiting.
-  history.pushState({ d: 1 }, '');
+  // At Home with nothing open: let this back press leave the app.
+  return;
 }
 
 /**

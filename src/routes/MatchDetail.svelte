@@ -86,7 +86,7 @@
 <Confirm
   open={confirmDelete}
   title="Delete match?"
-  message="This will permanently remove the match from history."
+  message="This will permanently remove the match from history and recalculate player ratings."
   confirmLabel="Delete"
   danger
   onConfirm={doDelete}
