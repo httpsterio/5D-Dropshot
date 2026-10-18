@@ -2,7 +2,9 @@
   import { app, getPlayer } from '../stores/app.svelte';
   import { go } from '../stores/router.svelte';
   import { statsFor, formatDuration } from '../lib/stats';
+  import { eloSeries } from '../lib/eloHistory';
   import AppBar from '../components/AppBar.svelte';
+  import EloChart from '../components/EloChart.svelte';
 
   interface Props { playerId: string; }
   let { playerId }: Props = $props();
@@ -14,6 +16,7 @@
   const errors = $derived([...stats.shotBreakdown.values()].filter(s => s.attribution === 'error').sort((a, b) => b.count - a.count));
 
   const playerMatches = $derived(app.matches.filter(m => m.leftPlayerId === playerId || m.rightPlayerId === playerId));
+  const eloPoints = $derived(eloSeries(playerId, [...playerMatches].sort((a, b) => a.endedAt - b.endedAt), player?.elo ?? 1000));
 
   function fmtDate(ts: number) {
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -59,6 +62,13 @@
         </div>
       </div>
 
+      {#if eloPoints.length > 1}
+        <section>
+          <h3 class="text-xs uppercase tracking-wide text-base-content/60 font-semibold mb-2 px-1">Elo history</h3>
+          <EloChart points={eloPoints} />
+        </section>
+      {/if}
+
       <section>
         <h3 class="text-xs uppercase tracking-wide text-success/80 font-semibold mb-2 px-1">Winning shots</h3>
         {#if winners.length === 0}
@@ -66,9 +76,10 @@
         {:else}
           <ul class="space-y-1.5">
             {#each winners as s (s.label)}
-              <li class="bg-base-200 rounded-lg px-3 py-2 flex justify-between items-center text-sm">
-                <span class="truncate">{s.label}</span>
-                <span class="tabular text-base-content/70 shrink-0 ml-2">{s.count} <span class="text-base-content/50">({s.pct.toFixed(1)}%)</span></span>
+              <li class="relative overflow-hidden bg-base-200 rounded-lg px-3 py-2 flex justify-between items-center text-sm">
+                <span class="absolute inset-y-0 left-0 bg-success/30" style="width: {s.pct}%"></span>
+                <span class="relative z-10 truncate text-base-content">{s.label}</span>
+                <span class="relative z-10 tabular text-base-content/70 shrink-0 ml-2">{s.count} <span class="text-base-content/50">({s.pct.toFixed(1)}%)</span></span>
               </li>
             {/each}
           </ul>
@@ -82,9 +93,10 @@
         {:else}
           <ul class="space-y-1.5">
             {#each errors as s (s.label)}
-              <li class="bg-base-200 rounded-lg px-3 py-2 flex justify-between items-center text-sm">
-                <span class="truncate">{s.label}</span>
-                <span class="tabular text-base-content/70 shrink-0 ml-2">{s.count} <span class="text-base-content/50">({s.pct.toFixed(1)}%)</span></span>
+              <li class="relative overflow-hidden bg-base-200 rounded-lg px-3 py-2 flex justify-between items-center text-sm">
+                <span class="absolute inset-y-0 left-0 bg-error/30" style="width: {s.pct}%"></span>
+                <span class="relative z-10 truncate text-base-content">{s.label}</span>
+                <span class="relative z-10 tabular text-base-content/70 shrink-0 ml-2">{s.count} <span class="text-base-content/50">({s.pct.toFixed(1)}%)</span></span>
               </li>
             {/each}
           </ul>

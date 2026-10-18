@@ -69,10 +69,12 @@ export function statsFor(playerId: ID, matches: FinishedMatch[], shotTypes: Shot
     }
   }
 
-  let totalActions = 0;
-  for (const e of stats.shotBreakdown.values()) totalActions += e.count;
+  // pct is the share within its own attribution, so winners sum to 100 and errors sum to 100.
+  const attributionTotals: Record<'winner' | 'error', number> = { winner: 0, error: 0 };
+  for (const e of stats.shotBreakdown.values()) attributionTotals[e.attribution] += e.count;
   for (const e of stats.shotBreakdown.values()) {
-    e.pct = totalActions > 0 ? (e.count / totalActions) * 100 : 0;
+    const total = attributionTotals[e.attribution];
+    e.pct = total > 0 ? (e.count / total) * 100 : 0;
   }
 
   cache.set(playerId, stats);

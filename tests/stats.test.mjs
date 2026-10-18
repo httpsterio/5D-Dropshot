@@ -60,6 +60,65 @@ test('totalPoints and pointsConceded come from the match scores, not the reasons
   assert.equal(p2.pointsConceded, 4);
 });
 
+const mixedShotTypes = [
+  ...shotTypes,
+  { id: 'error-net', label: 'Net', attribution: 'error' }
+];
+
+// p1 winners: smash x3, drop x1. p1 errors: other x3, net x1.
+const mixedMatch = {
+  id: 'm3',
+  startedAt: 1,
+  endedAt: 2,
+  leftPlayerId: 'p1',
+  rightPlayerId: 'p2',
+  points: [
+    { scorerSlot: 'left', shotTypeId: 'winner-smash', timestamp: 1 },
+    { scorerSlot: 'left', shotTypeId: 'winner-smash', timestamp: 2 },
+    { scorerSlot: 'left', shotTypeId: 'winner-smash', timestamp: 3 },
+    { scorerSlot: 'left', shotTypeId: 'winner-drop', timestamp: 4 },
+    { scorerSlot: 'right', shotTypeId: 'error-other', timestamp: 5 },
+    { scorerSlot: 'right', shotTypeId: 'error-other', timestamp: 6 },
+    { scorerSlot: 'right', shotTypeId: 'error-other', timestamp: 7 },
+    { scorerSlot: 'right', shotTypeId: 'error-net', timestamp: 8 }
+  ],
+  leftScore: 4,
+  rightScore: 4,
+  winnerId: 'p1',
+  loserId: 'p2',
+  isTie: false
+};
+
+test('winner percentages sum to 100 within their own attribution', () => {
+  const stats = statsFor('p1', [mixedMatch], mixedShotTypes, 6);
+  const winners = [...stats.shotBreakdown.values()].filter(e => e.attribution === 'winner');
+  const sum = winners.reduce((total, e) => total + e.pct, 0);
+  assert.ok(Math.abs(sum - 100) < 1e-9, `winners sum ${sum}`);
+  assert.equal(stats.shotBreakdown.get('winner-smash').pct, 75);
+  assert.equal(stats.shotBreakdown.get('winner-drop').pct, 25);
+});
+
+test('error percentages sum to 100 within their own attribution', () => {
+  const stats = statsFor('p1', [mixedMatch], mixedShotTypes, 7);
+  const errors = [...stats.shotBreakdown.values()].filter(e => e.attribution === 'error');
+  const sum = errors.reduce((total, e) => total + e.pct, 0);
+  assert.ok(Math.abs(sum - 100) < 1e-9, `errors sum ${sum}`);
+  assert.equal(stats.shotBreakdown.get('error-other').pct, 75);
+  assert.equal(stats.shotBreakdown.get('error-net').pct, 25);
+});
+
+test('a single recorded shot is 100% of its attribution', () => {
+  const soloMatch = {
+    ...match,
+    id: 'm4',
+    points: [{ scorerSlot: 'left', shotTypeId: 'winner-smash', timestamp: 1 }],
+    leftScore: 1,
+    rightScore: 0
+  };
+  const stats = statsFor('p1', [soloMatch], shotTypes, 8);
+  assert.equal(stats.shotBreakdown.get('winner-smash').pct, 100);
+});
+
 test('a player whose points are all reason-less still gets score-based stats', () => {
   const reasonless = {
     ...match,
